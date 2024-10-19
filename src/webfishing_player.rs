@@ -16,6 +16,7 @@ const MAX_NOTE: u8 = 79;
 struct TimedEvent<'a> {
     absolute_time: u64,
     event: TrackEvent<'a>,
+    track: u32,
 }
 
 impl<'a> Ord for TimedEvent<'a> {
@@ -71,13 +72,14 @@ impl<'a> WebfishingPlayer<'a> {
     }
 
     fn prepare_events(&mut self) {
-        for track in self.smf.tracks.clone() {
+        for (track_num, track) in self.smf.tracks.clone().iter().enumerate() {
             let mut absolute_time = 0;
             for event in track {
                 absolute_time += event.delta.as_int() as u64;
                 self.events.push(TimedEvent {
                     absolute_time,
-                    event,
+                    event: *event,
+                    track: track_num as u32,
                 });
             }
         }
@@ -116,7 +118,10 @@ impl<'a> WebfishingPlayer<'a> {
             match timed_event.event.kind {
                 TrackEventKind::Meta(midly::MetaMessage::Tempo(tempo)) => {
                     self.micros_per_tick = tempo.as_int() as u64 / ticks_per_beat;
-                    info!("Tempo change: {}µs per tick", self.micros_per_tick);
+                    info!(
+                        "Tempo change: {}µs per tick - track {}",
+                        self.micros_per_tick, timed_event.track
+                    );
                 }
                 TrackEventKind::Midi {
                     channel: _,
