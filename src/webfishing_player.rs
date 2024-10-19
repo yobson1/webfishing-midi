@@ -65,7 +65,7 @@ impl<'a> WebfishingPlayer<'a> {
         let timing = self.smf.header.timing;
         let ticks_per_beat = match timing {
             midly::Timing::Metrical(ppq) => ppq.as_int() as u64,
-            _ => panic!("Timecode timing not supported"),
+            _ => unimplemented!("Timecode timing not supported"),
         };
 
         let mut last_time = 0;
