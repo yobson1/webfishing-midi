@@ -1,5 +1,9 @@
 use device_query::{DeviceQuery, DeviceState, Keycode};
-use enigo::{Button, Coordinate, Direction::Click, Enigo, Key, Keyboard, Mouse, Settings};
+use enigo::{
+    Button, Coordinate,
+    Direction::{Click, Press, Release},
+    Enigo, Key, Keyboard, Mouse, Settings,
+};
 use log::info;
 use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
@@ -211,7 +215,9 @@ impl<'a> WebfishingPlayer<'a> {
             _ => return,
         };
 
-        self.enigo.key(key, Click).unwrap();
+        self.enigo.key(key, Press).unwrap();
+        sleep(Duration::from_micros(500));
+        self.enigo.key(key, Release).unwrap();
     }
 
     fn get_notes(smf: &Smf) -> Vec<u8> {
