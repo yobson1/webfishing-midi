@@ -1,0 +1,8 @@
+[package]
+name = "webfishing-midi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+midly = "0.5.3"
+dialoguer = {version = "0.11.0", features = ["fuzzy-select"]}
