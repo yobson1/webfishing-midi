@@ -141,7 +141,7 @@ impl<'a> WebfishingPlayer<'a> {
 
         info!("Optimal shift: {}", best_shift);
         info!(
-            "Total notes: {} | Playable notes: {} | Skipped notes {} : {}% playable",
+            "Total notes: {} | Playable notes: {} | Clamped notes {} : {}% playable",
             total_notes,
             max_playable_notes,
             total_notes - max_playable_notes,
