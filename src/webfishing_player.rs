@@ -52,7 +52,10 @@ struct GuitarPosition {
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(smf: Smf<'a>) -> WebfishingPlayer<'a> {
         if smf.header.format != Format::Parallel {
-            unimplemented!("Only parallel format is supported");
+            unimplemented!(
+                "Only parallel format is supported (format: {:?})",
+                smf.header.format
+            );
         }
 
         let notes = WebfishingPlayer::get_notes(&smf);
