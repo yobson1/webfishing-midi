@@ -1,6 +1,9 @@
 use log::info;
 use midly::{Smf, TrackEvent, TrackEventKind};
 
+const MIN_NOTE: u8 = 40;
+const MAX_NOTE: u8 = 79;
+
 pub struct WebfishingPlayer<'a> {
     smf: Smf<'a>,
     shift: i8,
@@ -28,7 +31,7 @@ impl<'a> WebfishingPlayer<'a> {
     }
 
     fn play_note(note: u8) {
-        let note = note.clamp(40, 79);
+        let note = note.clamp(MIN_NOTE, MAX_NOTE);
         unimplemented!();
     }
 
@@ -55,7 +58,9 @@ impl<'a> WebfishingPlayer<'a> {
         for shift in -127..=127i16 {
             let playable_notes = notes
                 .iter()
-                .filter(|&&n| (n as i16 + shift) >= 40 && (n as i16 + shift) <= 79)
+                .filter(|&&n| {
+                    (n as i16 + shift) >= MIN_NOTE as i16 && (n as i16 + shift) <= MAX_NOTE as i16
+                })
                 .count();
 
             // The best shift is the one with the most playable notes that is closest to 0
