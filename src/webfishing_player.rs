@@ -106,8 +106,7 @@ impl<'a> WebfishingPlayer<'a> {
                 break;
             }
         }
-        println!("Hold ESC to exit at any time");
-
+        println!("Tab over to the game and press backspace to start playing");
         while let Some(timed_event) = self.events.pop() {
             let keys = device_state.get_keys();
             if keys.contains(&Keycode::Escape) {
