@@ -8,18 +8,18 @@ pub struct WebfishingPlayer<'a> {
 
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(smf: Smf<'a>) -> WebfishingPlayer {
-        let mut player = WebfishingPlayer { smf, shift: 0 };
-        player.calculate_optimal_shift();
-        player
+        let notes = WebfishingPlayer::get_notes(&smf);
+        let shift = WebfishingPlayer::calculate_optimal_shift(&notes);
+        WebfishingPlayer { smf, shift }
     }
 
     pub fn play(&self) {
         for track in &self.smf.tracks {
-            self.play_track(&track);
+            self.play_track(track);
         }
     }
 
-    fn play_track(&self, track: &Vec<TrackEvent<'_>>) {
+    fn play_track(&self, track: &[TrackEvent<'_>]) {
         let timing = self.smf.header.timing;
 
         for event in track {}
@@ -32,9 +32,8 @@ impl<'a> WebfishingPlayer<'a> {
         unimplemented!();
     }
 
-    fn get_notes(&self) -> Vec<u8> {
-        self.smf
-            .tracks
+    fn get_notes(smf: &Smf) -> Vec<u8> {
+        smf.tracks
             .iter()
             .flat_map(|track| track)
             .filter_map(|event| match event.kind {
@@ -48,8 +47,7 @@ impl<'a> WebfishingPlayer<'a> {
             .collect()
     }
 
-    fn calculate_optimal_shift(&mut self) {
-        let notes = self.get_notes();
+    fn calculate_optimal_shift(notes: &Vec<u8>) -> i8 {
         let mut best_shift: i16 = 0;
         let mut max_playable_notes = 0;
         let total_notes = notes.len();
@@ -78,6 +76,6 @@ impl<'a> WebfishingPlayer<'a> {
             max_playable_notes as f32 / total_notes as f32 * 100.0
         );
 
-        self.shift = best_shift as i8;
+        best_shift as i8
     }
 }
