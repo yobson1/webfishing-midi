@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 midly = "0.5.3"
 dialoguer = {version = "0.11.0", features = ["fuzzy-select"]}
+log = "0.4.22"
+simple_logger = "5.0.0"

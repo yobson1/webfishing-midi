@@ -1,10 +1,17 @@
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
+use log::info;
 use midly::{Smf, TrackEvent, TrackEventKind};
+use simple_logger::SimpleLogger;
 use std::{fs, path::PathBuf};
 
 const MIDI_DIR: &str = "./midi";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .without_timestamps()
+        .init()
+        .unwrap();
     let theme = ColorfulTheme::default();
 
     let midi_file_path = get_midi_selection(&theme);
@@ -12,8 +19,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let smf = Smf::parse(&midi_data)?;
 
     let optimal_shift = get_optimal_shift(&smf);
-
-    println!("Optimal shift: {}", optimal_shift);
 
     Ok(())
 }
@@ -72,6 +77,7 @@ fn get_optimal_shift(smf: &Smf) -> i8 {
 fn calculate_optimal_shift(notes: &[u8]) -> i8 {
     let mut best_shift: i16 = 0;
     let mut max_playable_notes = 0;
+    let total_notes = notes.len();
 
     for shift in -127..=127i16 {
         let playable_notes = notes
@@ -87,6 +93,15 @@ fn calculate_optimal_shift(notes: &[u8]) -> i8 {
             best_shift = shift;
         }
     }
+
+    info!("Optimal shift: {}", best_shift);
+    info!(
+        "Total notes: {} | Playable notes: {} | Skipped notes {} : {}% playable",
+        total_notes,
+        max_playable_notes,
+        total_notes - max_playable_notes,
+        max_playable_notes as f32 / total_notes as f32 * 100.0
+    );
 
     best_shift as i8
 }
