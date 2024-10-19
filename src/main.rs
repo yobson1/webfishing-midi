@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let midi_data = fs::read(midi_file_path)?;
     let smf = Smf::parse(&midi_data)?;
 
-    let player = WebfishingPlayer::new(smf);
+    let mut player = WebfishingPlayer::new(smf);
     player.play();
 
     Ok(())
