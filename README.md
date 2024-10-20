@@ -13,6 +13,8 @@ Linux users may need additional runtime dependencies see [here](https://github.c
 
 ### Interface
 The program uses a simple terminal interface powered by [dialoguer](https://github.com/console-rs/dialoguer) you can select a midi by typing a name to search and using the arrow keys & enter to make a selection.
+#### Demo
+https://github.com/user-attachments/assets/c7b81e3e-f701-4470-bc7c-66a9a4e508da
 
 ## Supported platforms
 As of now this has only been tested on Linux and Windows but I have taken care to use cross-platform libraries. If you encounter a problem please [open an issue](https://github.com/yobson1/webfishing-midi/issues) and I will try to resolve it
