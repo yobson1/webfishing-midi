@@ -118,7 +118,7 @@ impl<'a> WebfishingPlayer<'a> {
         while let Some(timed_event) = self.events.pop() {
             let keys = device_state.get_keys();
             if keys.contains(&Keycode::Escape) {
-                info!("Exiting");
+                info!("Song interrupted");
                 break;
             }
 
