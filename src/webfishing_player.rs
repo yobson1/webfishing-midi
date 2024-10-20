@@ -220,7 +220,10 @@ impl<'a> WebfishingPlayer<'a> {
         };
 
         self.enigo.key(key, Press).unwrap();
-        sleep(Duration::from_micros(500));
+        // NOTE: This sleep is needed for the game to read the input
+        // espesially when it is low FPS since it checks input
+        // once per frame
+        sleep(Duration::from_millis(30));
         self.enigo.key(key, Release).unwrap();
     }
 
