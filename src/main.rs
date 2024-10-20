@@ -8,7 +8,7 @@ use webfishing_player::WebfishingPlayer;
 use xcap::Window;
 
 const MIDI_DIR: &str = "./midi";
-const WINDOW_NAMES: [&str; 2] = ["steam_app_3146520", "webfishing.exe"];
+const WINDOW_NAMES: [&str; 2] = ["steam_app_3146520", "Fish! (On the WEB!)"];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
