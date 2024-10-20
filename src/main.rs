@@ -1,12 +1,14 @@
 mod webfishing_player;
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
-use log::error;
+use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
 use std::{fs, path::PathBuf};
 use webfishing_player::WebfishingPlayer;
+use xcap::Window;
 
 const MIDI_DIR: &str = "./midi";
+const WINDOW_NAMES: [&str; 2] = ["steam_app_3146520", "webfishing.exe"];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
@@ -15,6 +17,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init()
         .unwrap();
     let theme = ColorfulTheme::default();
+
+    let window = WINDOW_NAMES
+        .iter()
+        .find_map(|name| get_window(name))
+        .ok_or_else(|| "Could not find game window")?;
+
+    info!(
+        "Found window: {} {},{} {}x{}",
+        window.title(),
+        window.x(),
+        window.y(),
+        window.width(),
+        window.height()
+    );
 
     let mut midi_data;
     let mut default_selection = 0;
@@ -37,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        match WebfishingPlayer::new(smf) {
+        match WebfishingPlayer::new(smf, &window) {
             Ok(player) => break player,
             Err(e) => {
                 error!("Error creating player: {}", e);
@@ -49,6 +65,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     player.play();
 
     Ok(())
+}
+
+fn get_window(name: &str) -> Option<Window> {
+    let windows = Window::all().unwrap();
+    windows.into_iter().find(|w| w.app_name() == name)
 }
 
 fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathBuf, usize) {

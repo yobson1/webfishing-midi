@@ -13,6 +13,7 @@ use std::{
     thread::sleep,
     time::Duration,
 };
+use xcap::Window;
 
 const MIN_NOTE: u8 = 40;
 const MAX_NOTE: u8 = 79;
@@ -42,6 +43,7 @@ pub struct WebfishingPlayer<'a> {
     micros_per_tick: u64,
     events: BinaryHeap<TimedEvent<'a>>,
     enigo: Enigo,
+    window: &'a Window,
     cur_string_positions: HashMap<i32, i32>,
 }
 
@@ -51,7 +53,7 @@ struct GuitarPosition {
 }
 
 impl<'a> WebfishingPlayer<'a> {
-    pub fn new(smf: Smf<'a>) -> Result<WebfishingPlayer<'a>, Error> {
+    pub fn new(smf: Smf<'a>, window: &'a Window) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
             return Err(Error::new(
                 ErrorKind::Unsupported,
@@ -67,6 +69,7 @@ impl<'a> WebfishingPlayer<'a> {
             micros_per_tick: 0,
             events: BinaryHeap::new(),
             enigo: Enigo::new(&Settings::default()).unwrap(),
+            window,
             cur_string_positions: HashMap::new(),
         };
 
@@ -198,10 +201,25 @@ impl<'a> WebfishingPlayer<'a> {
         *cur_string_pos = fret;
 
         // These values need to be adjusted based on your screen resolution and game window position
-        let fret_x = 460 + (string * 44);
-        let fret_y = 130 + (fret * 82);
+        let scale_x = self.window.width() as f32 / 2560.0;
+        let scale_y = self.window.height() as f32 / 1440.0;
 
-        info!("x: {} y: {}", fret_x, fret_y);
+        // Offset from the left where the strings start
+        let scaled_left = (460.0 * scale_x) as i32;
+        // Offset from the top where the frets start
+        let scaled_top = (130.0 * scale_y) as i32;
+        // Distance centre to centre of the strings
+        let scaled_string = (44.0 * scale_x) as i32;
+        // Distance centre to centre of the frets
+        let scaled_fret = (82.0 * scale_y) as i32;
+
+        let fret_x = self.window.x() + (scaled_left + (string * scaled_string));
+        let fret_y = self.window.y() + (scaled_top + (fret * scaled_fret));
+
+        info!(
+            "x: {} y: {} | scale_x {:.3} scale_y {:.3}",
+            fret_x, fret_y, scale_x, scale_y
+        );
 
         self.enigo
             .move_mouse(fret_x, fret_y, Coordinate::Abs)
