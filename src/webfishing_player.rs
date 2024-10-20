@@ -109,12 +109,12 @@ impl<'a> WebfishingPlayer<'a> {
 
         // Attempt to press space in-case the user's OS requires a permission pop-up for input
         self.enigo.key(Key::Space, Click).unwrap();
+        println!("Tab over to the game and press backspace to start playing");
         loop {
             if device_state.get_keys().contains(&Keycode::Backspace) {
                 break;
             }
         }
-        println!("Tab over to the game and press backspace to start playing");
         while let Some(timed_event) = self.events.pop() {
             let keys = device_state.get_keys();
             if keys.contains(&Keycode::Escape) {
