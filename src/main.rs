@@ -14,8 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
         .without_timestamps()
-        .init()
-        .unwrap();
+        .init()?;
     let theme = ColorfulTheme::default();
 
     let window = WINDOW_NAMES
