@@ -3,7 +3,7 @@ use dialoguer::{theme::ColorfulTheme, FuzzySelect};
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
-use std::{fs, path::PathBuf};
+use std::{fs, io::stdin, path::PathBuf, process::exit};
 use webfishing_player::WebfishingPlayer;
 use xcap::Window;
 
@@ -20,7 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let window = WINDOW_NAMES
         .iter()
         .find_map(|name| get_window(name))
-        .ok_or_else(|| "Could not find game window")?;
+        .ok_or_else(|| {
+            error!("Could not find game window");
+            pause_and_exit(-1);
+        })
+        .unwrap();
 
     info!(
         "Found window: {} {},{} {}x{}",
@@ -74,7 +78,10 @@ fn get_window(name: &str) -> Option<Window> {
 fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathBuf, usize) {
     // Get a list of the .mid files from ./midi
     let midi_files: Vec<_> = fs::read_dir(MIDI_DIR)
-        .expect(&format!("You need to place MIDI files in {}", MIDI_DIR))
+        .unwrap_or_else(|e| {
+            error!("You need to place MIDI files in {} - {}", MIDI_DIR, e);
+            pause_and_exit(e.raw_os_error().unwrap_or(-1) as i32)
+        })
         .filter_map(|entry| {
             entry.ok().and_then(|e| {
                 let path = e.path();
@@ -100,4 +107,11 @@ fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathB
         .unwrap();
 
     (midi_files[selection].clone(), selection)
+}
+
+fn pause_and_exit(code: i32) -> ! {
+    println!("Press Enter to exit...");
+    let mut input = String::new();
+    stdin().read_line(&mut input).unwrap();
+    exit(code);
 }
