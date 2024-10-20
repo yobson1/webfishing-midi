@@ -35,37 +35,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.height()
     );
 
-    let mut midi_data;
-    let mut default_selection = 0;
-    let mut player = loop {
-        let (midi_file_path, selection) = get_midi_selection(&theme, default_selection);
-        default_selection = selection;
-        midi_data = match fs::read(&midi_file_path) {
-            Ok(data) => data,
-            Err(e) => {
-                error!("Failed to read MIDI file: {}", e);
-                continue;
+    loop {
+        let mut midi_data;
+        let mut default_selection = 0;
+        let mut player = loop {
+            let (midi_file_path, selection) = get_midi_selection(&theme, default_selection);
+            default_selection = selection;
+            midi_data = match fs::read(&midi_file_path) {
+                Ok(data) => data,
+                Err(e) => {
+                    error!("Failed to read MIDI file: {}", e);
+                    continue;
+                }
+            };
+
+            let smf = match Smf::parse(&midi_data) {
+                Ok(smf) => smf,
+                Err(e) => {
+                    error!("Failed to parse MIDI file: {}", e);
+                    continue;
+                }
+            };
+
+            match WebfishingPlayer::new(smf, &window) {
+                Ok(player) => break player,
+                Err(e) => {
+                    error!("Error creating player: {}", e);
+                    continue;
+                }
             }
         };
 
-        let smf = match Smf::parse(&midi_data) {
-            Ok(smf) => smf,
-            Err(e) => {
-                error!("Failed to parse MIDI file: {}", e);
-                continue;
-            }
-        };
+        player.play();
 
-        match WebfishingPlayer::new(smf, &window) {
-            Ok(player) => break player,
-            Err(e) => {
-                error!("Error creating player: {}", e);
-                continue;
-            }
+        let confirmation = dialoguer::Confirm::with_theme(&theme)
+            .with_prompt("Do you want to play another song?")
+            .default(true)
+            .interact()?;
+        if !confirmation {
+            break;
         }
-    };
-
-    player.play();
+    }
 
     Ok(())
 }
