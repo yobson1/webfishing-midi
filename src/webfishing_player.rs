@@ -109,7 +109,6 @@ impl<'a> WebfishingPlayer<'a> {
 
         // Attempt to press space in-case the user's OS requires a permission pop-up for input
         self.enigo.key(Key::Space, Click).unwrap();
-        println!("Press backspace to start playing");
         loop {
             if device_state.get_keys().contains(&Keycode::Backspace) {
                 break;
