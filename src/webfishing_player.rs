@@ -4,12 +4,12 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings,
 };
-use log::info;
+use log::{info, warn};
 use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
-    io::{Error, ErrorKind},
+    io::Error,
     thread::sleep,
     time::Duration,
 };
@@ -55,10 +55,7 @@ struct GuitarPosition {
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(smf: Smf<'a>, window: &'a Window) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "Only parallel MIDI supported",
-            ));
+            warn!("Format not parallel");
         }
 
         let notes = WebfishingPlayer::get_notes(&smf);
