@@ -1,5 +1,6 @@
 mod webfishing_player;
 use dialoguer::{theme::ColorfulTheme, FuzzySelect};
+use log::error;
 use midly::Smf;
 use simple_logger::SimpleLogger;
 use std::{fs, path::PathBuf};
@@ -15,17 +16,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     let theme = ColorfulTheme::default();
 
-    let midi_file_path = get_midi_selection(&theme);
-    let midi_data = fs::read(midi_file_path)?;
-    let smf = Smf::parse(&midi_data)?;
+    let mut midi_data;
+    let mut default_selection = 0;
+    let mut player = loop {
+        let (midi_file_path, selection) = get_midi_selection(&theme, default_selection);
+        default_selection = selection;
+        midi_data = match fs::read(&midi_file_path) {
+            Ok(data) => data,
+            Err(e) => {
+                error!("Failed to read MIDI file: {}", e);
+                continue;
+            }
+        };
 
-    let mut player = WebfishingPlayer::new(smf);
+        let smf = match Smf::parse(&midi_data) {
+            Ok(smf) => smf,
+            Err(e) => {
+                error!("Failed to parse MIDI file: {}", e);
+                continue;
+            }
+        };
+
+        match WebfishingPlayer::new(smf) {
+            Ok(player) => break player,
+            Err(e) => {
+                error!("Error creating player: {}", e);
+                continue;
+            }
+        }
+    };
+
     player.play();
 
     Ok(())
 }
 
-fn get_midi_selection(theme: &ColorfulTheme) -> PathBuf {
+fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathBuf, usize) {
     // Get a list of the .mid files from ./midi
     let midi_files: Vec<_> = fs::read_dir(MIDI_DIR)
         .expect(&format!("You need to place MIDI files in {}", MIDI_DIR))
@@ -49,9 +75,9 @@ fn get_midi_selection(theme: &ColorfulTheme) -> PathBuf {
     let selection = FuzzySelect::with_theme(theme)
         .with_prompt("Select a midi file to play")
         .items(&midi_file_names)
-        .default(0)
+        .default(default_selection)
         .interact()
         .unwrap();
 
-    midi_files[selection].clone()
+    (midi_files[selection].clone(), selection)
 }

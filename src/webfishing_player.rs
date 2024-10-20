@@ -9,6 +9,7 @@ use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
+    io::{Error, ErrorKind},
     thread::sleep,
     time::Duration,
 };
@@ -50,12 +51,12 @@ struct GuitarPosition {
 }
 
 impl<'a> WebfishingPlayer<'a> {
-    pub fn new(smf: Smf<'a>) -> WebfishingPlayer<'a> {
+    pub fn new(smf: Smf<'a>) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
-            unimplemented!(
-                "Only parallel format is supported (format: {:?})",
-                smf.header.format
-            );
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Only parallel MIDI supported",
+            ));
         }
 
         let notes = WebfishingPlayer::get_notes(&smf);
@@ -75,7 +76,7 @@ impl<'a> WebfishingPlayer<'a> {
         }
 
         player.prepare_events();
-        player
+        Ok(player)
     }
 
     fn prepare_events(&mut self) {
