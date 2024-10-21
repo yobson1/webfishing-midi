@@ -13,6 +13,8 @@ Linux users may need additional runtime dependencies see [here](https://github.c
 
 ### Interface
 The program uses a simple terminal interface powered by [dialoguer](https://github.com/console-rs/dialoguer) you can select a midi by typing a name to search and using the arrow keys & enter to make a selection.
+### Skip overlapping strings
+When you select a song you will be asked if you want to skip overlapping strings. This skips notes that would be played on the same string at the same time just with a different fret. This usually sounds pretty bad so you can choose to skip these notes and it will just play one note on at a time on each string for each tick.
 #### Demo
 https://github.com/user-attachments/assets/c7b81e3e-f701-4470-bc7c-66a9a4e508da
 
