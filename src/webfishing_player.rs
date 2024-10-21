@@ -187,12 +187,17 @@ impl<'a> WebfishingPlayer<'a> {
         let note = note.clamp(MIN_NOTE, MAX_NOTE);
         let position = self.midi_note_to_guitar_position(note);
 
-        if self.skip_overlapping && self.strings_played[position.string as usize] {
+        if self.strings_played[position.string as usize] {
             warn!(
-                "Note {} skipped as it would be the same string on the same tick",
-                note
+                "Note {} played on string {} fret {} overlaps",
+                note,
+                position.string + 1,
+                position.fret
             );
-            return;
+            if self.skip_overlapping {
+                info!("Skipping note {}", note);
+                return;
+            }
         }
 
         info!(
