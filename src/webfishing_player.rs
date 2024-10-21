@@ -120,6 +120,10 @@ impl<'a> WebfishingPlayer<'a> {
                 break;
             }
         }
+
+        // Reset the guitar to all open string
+        self.set_fret(6, 0);
+
         while let Some(timed_event) = self.events.pop() {
             let keys = device_state.get_keys();
             if keys.contains(&Keycode::Escape) {
@@ -210,7 +214,7 @@ impl<'a> WebfishingPlayer<'a> {
     fn set_fret(&mut self, string: i32, fret: i32) {
         // Don't attempt to change to this position if it's already set
         // It will just unset it
-        if self.cur_string_positions.get(&string).unwrap() == &fret {
+        if self.cur_string_positions.get(&string).unwrap_or(&-1) == &fret {
             return;
         }
 
