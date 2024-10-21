@@ -45,6 +45,8 @@ pub struct WebfishingPlayer<'a> {
     enigo: Enigo,
     window: &'a Window,
     cur_string_positions: HashMap<i32, i32>,
+    strings_played: [bool; 6],
+    skip_overlapping: bool,
 }
 
 struct GuitarPosition {
@@ -53,7 +55,11 @@ struct GuitarPosition {
 }
 
 impl<'a> WebfishingPlayer<'a> {
-    pub fn new(smf: Smf<'a>, window: &'a Window) -> Result<WebfishingPlayer<'a>, Error> {
+    pub fn new(
+        smf: Smf<'a>,
+        skip_overlapping: bool,
+        window: &'a Window,
+    ) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
             warn!("Format not parallel");
         }
@@ -68,6 +74,8 @@ impl<'a> WebfishingPlayer<'a> {
             enigo: Enigo::new(&Settings::default()).unwrap(),
             window,
             cur_string_positions: HashMap::new(),
+            strings_played: [false; 6],
+            skip_overlapping,
         };
 
         // For each 6 strings initialize the cur pos as 0
@@ -120,7 +128,10 @@ impl<'a> WebfishingPlayer<'a> {
             }
 
             let wait_time = timed_event.absolute_time - last_time;
-            sleep(Duration::from_micros(wait_time * self.micros_per_tick));
+            if wait_time > 0 {
+                self.strings_played = [false; 6];
+                sleep(Duration::from_micros(wait_time * self.micros_per_tick));
+            }
             last_time = timed_event.absolute_time;
 
             match timed_event.event.kind {
@@ -172,6 +183,14 @@ impl<'a> WebfishingPlayer<'a> {
         let note = note.clamp(MIN_NOTE, MAX_NOTE);
         let position = self.midi_note_to_guitar_position(note);
 
+        if self.skip_overlapping && self.strings_played[position.string as usize] {
+            warn!(
+                "Note {} skipped as it would be the same string on the same tick",
+                note
+            );
+            return;
+        }
+
         info!(
             "Playing note {} on string {} fret {}",
             note,
@@ -184,6 +203,8 @@ impl<'a> WebfishingPlayer<'a> {
 
         // Strum the string
         self.strum_string(position.string);
+
+        self.strings_played[position.string as usize] = true;
     }
 
     fn set_fret(&mut self, string: i32, fret: i32) {

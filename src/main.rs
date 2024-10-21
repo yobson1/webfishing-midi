@@ -1,5 +1,5 @@
 mod webfishing_player;
-use dialoguer::{theme::ColorfulTheme, FuzzySelect};
+use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
@@ -57,7 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            match WebfishingPlayer::new(smf, &window) {
+            let skip_overlapping_strings = Confirm::with_theme(&theme)
+                .with_prompt("Skip overlapping strings? (Recommended)")
+                .default(true)
+                .interact()?;
+
+            match WebfishingPlayer::new(smf, skip_overlapping_strings, &window) {
                 Ok(player) => break player,
                 Err(e) => {
                     error!("Error creating player: {}", e);
@@ -68,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         player.play();
 
-        let confirmation = dialoguer::Confirm::with_theme(&theme)
+        let confirmation = Confirm::with_theme(&theme)
             .with_prompt("Do you want to play another song?")
             .default(true)
             .interact()?;
