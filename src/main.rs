@@ -3,7 +3,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
-use std::{fs, io::stdin, path::PathBuf, process::exit};
+use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
 use webfishing_player::WebfishingPlayer;
 use xcap::Window;
 
@@ -91,37 +91,75 @@ fn get_window(name: &str) -> Option<Window> {
 }
 
 fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathBuf, usize) {
-    // Get a list of the .mid files from ./midi
-    let midi_files: Vec<_> = fs::read_dir(MIDI_DIR)
-        .unwrap_or_else(|e| {
-            error!("You need to place MIDI files in {} - {}", MIDI_DIR, e);
-            pause_and_exit(e.raw_os_error().unwrap_or(-1) as i32)
-        })
-        .filter_map(|entry| {
-            entry.ok().and_then(|e| {
-                let path = e.path();
-                if path.extension().and_then(|s| s.to_str()) == Some("mid") {
-                    Some(path)
-                } else {
-                    None
+    let mut current_dir = PathBuf::from(MIDI_DIR);
+
+    loop {
+        let (midi_files, folder_names) = collect_midi_files(&current_dir);
+
+        let mut items: Vec<String> = Vec::new();
+
+        // Add an option to go to the parent directory
+        if current_dir != PathBuf::from(MIDI_DIR) {
+            items.push("..".to_string());
+        } else {
+            // Replace parent option with refresh in ./midi
+            items.push("[Refresh]".to_string());
+        }
+
+        // Add folder names
+        items.extend(folder_names.iter().map(|name| format!("[Folder] {}", name)));
+
+        // Add MIDI file names
+        items.extend(midi_files.iter().map(|path| path.file_name().unwrap().to_str().unwrap().to_string()));
+
+        let selection = FuzzySelect::with_theme(theme)
+            .with_prompt("Select a midi file or folder to navigate")
+            .items(&items)
+            .default(default_selection)
+            .interact()
+            .unwrap();
+
+        if selection == 0 && current_dir == PathBuf::from(MIDI_DIR) {
+            // Refresh list
+            current_dir = current_dir;
+        }
+        else if selection == 0 && current_dir.parent().is_some() {
+            // Navigate to the parent folder
+            current_dir = current_dir.parent().unwrap().to_path_buf();
+        } else if selection < folder_names.len() + 1 {
+            // Navigate into the selected folder
+            let selected_folder = &folder_names[selection - 1]; // Adjust index for folder selection
+            current_dir = current_dir.join(selected_folder); // Update current_dir to the selected folder
+        } else {
+            // Select a MIDI file
+            let midi_file_index = selection - folder_names.len() - 1; // Adjust index for MIDI file selection
+            return (midi_files[midi_file_index].clone(), midi_file_index);
+        }
+    }
+}
+
+fn collect_midi_files(dir: &Path) -> (Vec<PathBuf>, Vec<String>) {
+    let mut midi_files = Vec::new();
+    let mut folder_names = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                // Collect folder names
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    folder_names.push(name.to_string());
                 }
-            })
-        })
-        .collect();
+            } else if path.extension().and_then(|s| s.to_str()) == Some("mid") {
+                // Collect MIDI files
+                midi_files.push(path);
+            }
+        }
+    } else {
+        error!("You need to place MIDI files in {}.", dir.display());
+    }
 
-    let midi_file_names = midi_files
-        .iter()
-        .map(|path| path.file_name().unwrap().to_str().unwrap())
-        .collect::<Vec<_>>();
-
-    let selection = FuzzySelect::with_theme(theme)
-        .with_prompt("Select a midi file to play")
-        .items(&midi_file_names)
-        .default(default_selection)
-        .interact()
-        .unwrap();
-
-    (midi_files[selection].clone(), selection)
+    (midi_files, folder_names)
 }
 
 fn pause_and_exit(code: i32) -> ! {
