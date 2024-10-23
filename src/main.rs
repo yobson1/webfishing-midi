@@ -35,24 +35,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.height()
     );
 
+    let mut song_queue: Vec<(Vec<u8>, bool, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
+
     loop {
-        let mut midi_data;
         let mut default_selection = 0;
-        let mut player = loop {
+
+        // Selection loop for adding songs to the queue
+        loop {
             let (midi_file_path, selection) = get_midi_selection(&theme, default_selection);
             default_selection = selection;
-            midi_data = match fs::read(&midi_file_path) {
+
+            let midi_data = match fs::read(&midi_file_path) {
                 Ok(data) => data,
                 Err(e) => {
                     error!("Failed to read MIDI file: {}", e);
-                    continue;
-                }
-            };
-
-            let smf = match Smf::parse(&midi_data) {
-                Ok(smf) => smf,
-                Err(e) => {
-                    error!("Failed to parse MIDI file: {}", e);
                     continue;
                 }
             };
@@ -67,17 +63,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .default(false)
                 .interact()?;
 
-            match WebfishingPlayer::new(smf, skip_overlapping_strings, loop_midi, &window) {
-                Ok(player) => break player,
+            // Add the selected song to the queue
+            song_queue.push((midi_data, skip_overlapping_strings, loop_midi));
+
+            if loop_midi {
+                break; // Exit the selection loop
+            }
+
+            // Ask if the user wants to add another song
+            let add_another_song = Confirm::with_theme(&theme)
+                .with_prompt("Would you like to add another song to the queue?")
+                .default(false)
+                .interact()?;
+
+            if !add_another_song {
+                break; // Exit the selection loop
+            }
+        }
+
+        // Play all songs in the queue
+        for (index, (midi_data, skip_overlapping_strings, loop_midi)) in song_queue.iter().enumerate() {
+            let smf = Smf::parse(midi_data).expect("Failed to parse MIDI data");
+
+            let is_first_song = index == 0;
+
+            let mut player = match WebfishingPlayer::new(smf, *skip_overlapping_strings, *loop_midi, is_first_song, &window) {
+                Ok(player) => player,
                 Err(e) => {
                     error!("Error creating player: {}", e);
                     continue;
                 }
-            }
-        };
+            };
 
-        player.play();
+            player.play();
+        }
 
+        // Clear the queue after playing
+        song_queue.clear();
+
+        // Ask if the user wants to play another song
         let confirmation = Confirm::with_theme(&theme)
             .with_prompt("Do you want to play another song?")
             .default(true)
@@ -89,6 +113,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+
 
 fn get_window(name: &str) -> Option<Window> {
     let windows = Window::all().unwrap();

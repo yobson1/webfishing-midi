@@ -48,6 +48,7 @@ pub struct WebfishingPlayer<'a> {
     strings_played: [bool; 6],
     skip_overlapping: bool,
     loop_midi: bool,
+    is_first_song: bool,
 }
 
 struct GuitarPosition {
@@ -60,6 +61,7 @@ impl<'a> WebfishingPlayer<'a> {
         smf: Smf<'a>,
         skip_overlapping: bool,
         loop_midi: bool,
+        is_first_song: bool,
         window: &'a Window,
     ) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
@@ -79,6 +81,7 @@ impl<'a> WebfishingPlayer<'a> {
             strings_played: [false; 6],
             skip_overlapping,
             loop_midi,
+            is_first_song,
         };
 
         // For each 6 strings initialize the cur pos as 0
@@ -115,10 +118,13 @@ impl<'a> WebfishingPlayer<'a> {
 
         // Attempt to press space in-case the user's OS requires a permission pop-up for input
         self.enigo.key(Key::Space, Click).unwrap();
-        println!("Tab over to the game and press backspace to start playing");
-        loop {
-            if device_state.get_keys().contains(&Keycode::Backspace) {
-                break;
+        if self.is_first_song
+        {
+            println!("Tab over to the game and press backspace to start playing");
+            loop {
+                if device_state.get_keys().contains(&Keycode::Backspace) {
+                    break;
+                }
             }
         }
 
