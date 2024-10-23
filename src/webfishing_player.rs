@@ -47,6 +47,7 @@ pub struct WebfishingPlayer<'a> {
     cur_string_positions: HashMap<i32, i32>,
     strings_played: [bool; 6],
     skip_overlapping: bool,
+    loop_midi: bool,
 }
 
 struct GuitarPosition {
@@ -58,6 +59,7 @@ impl<'a> WebfishingPlayer<'a> {
     pub fn new(
         smf: Smf<'a>,
         skip_overlapping: bool,
+        loop_midi: bool,
         window: &'a Window,
     ) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
@@ -76,6 +78,7 @@ impl<'a> WebfishingPlayer<'a> {
             cur_string_positions: HashMap::new(),
             strings_played: [false; 6],
             skip_overlapping,
+            loop_midi,
         };
 
         // For each 6 strings initialize the cur pos as 0
@@ -108,8 +111,6 @@ impl<'a> WebfishingPlayer<'a> {
             _ => unimplemented!("Timecode timing not supported"),
         };
 
-        let mut last_time = 0;
-
         let device_state = DeviceState::new();
 
         // Attempt to press space in-case the user's OS requires a permission pop-up for input
@@ -124,41 +125,52 @@ impl<'a> WebfishingPlayer<'a> {
         // Reset the guitar to all open string
         self.set_fret(6, 0);
 
-        while let Some(timed_event) = self.events.pop() {
-            let keys = device_state.get_keys();
-            if keys.contains(&Keycode::Escape) {
-                info!("Song interrupted");
-                break;
-            }
+        loop { // Start a new loop for playback
+            let mut last_time = 0; // Reset last_time for each loop iteration
 
-            let wait_time = timed_event.absolute_time - last_time;
-            if wait_time > 0 {
-                self.strings_played = [false; 6];
-                sleep(Duration::from_micros(wait_time * self.micros_per_tick));
-            }
-            last_time = timed_event.absolute_time;
-
-            match timed_event.event.kind {
-                TrackEventKind::Meta(midly::MetaMessage::Tempo(tempo)) => {
-                    self.micros_per_tick = tempo.as_int() as u64 / ticks_per_beat;
-                    info!(
-                        "Tempo change: {}µs per tick - track {}",
-                        self.micros_per_tick, timed_event.track
-                    );
+            while let Some(timed_event) = self.events.pop() {
+                let keys = device_state.get_keys();
+                if keys.contains(&Keycode::Escape) {
+                    info!("Song interrupted");
+                    return; // Exit the play method
                 }
-                TrackEventKind::Midi {
-                    channel: _,
-                    message,
-                } => match message {
-                    midly::MidiMessage::NoteOn { key, vel } => {
-                        if vel.as_int() > 0 {
-                            let note = (key.as_int() as i8 + self.shift) as u8;
-                            self.play_note(note);
-                        }
+
+                let wait_time = timed_event.absolute_time - last_time;
+                if wait_time > 0 {
+                    self.strings_played = [false; 6];
+                    sleep(Duration::from_micros(wait_time * self.micros_per_tick));
+                }
+                last_time = timed_event.absolute_time;
+
+                match timed_event.event.kind {
+                    TrackEventKind::Meta(midly::MetaMessage::Tempo(tempo)) => {
+                        self.micros_per_tick = tempo.as_int() as u64 / ticks_per_beat;
+                        info!(
+                            "Tempo change: {}µs per tick - track {}",
+                            self.micros_per_tick, timed_event.track
+                        );
                     }
+                    TrackEventKind::Midi {
+                        channel: _,
+                        message,
+                    } => match message {
+                        midly::MidiMessage::NoteOn { key, vel } => {
+                            if vel.as_int() > 0 {
+                                let note = (key.as_int() as i8 + self.shift) as u8;
+                                self.play_note(note);
+                            }
+                        }
+                        _ => {}
+                    },
                     _ => {}
-                },
-                _ => {}
+                }
+            }
+
+            if self.loop_midi {
+                info!("Looping the MIDI playback (Hold ESC to stop)");
+                self.prepare_events();
+            } else {
+                break;
             }
         }
     }

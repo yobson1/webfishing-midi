@@ -62,7 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .default(true)
                 .interact()?;
 
-            match WebfishingPlayer::new(smf, skip_overlapping_strings, &window) {
+            let loop_midi = Confirm::with_theme(&theme)
+                .with_prompt("Loop? (Hold ESC to stop)")
+                .default(false)
+                .interact()?;
+
+            match WebfishingPlayer::new(smf, skip_overlapping_strings, loop_midi, &window) {
                 Ok(player) => break player,
                 Err(e) => {
                     error!("Error creating player: {}", e);
