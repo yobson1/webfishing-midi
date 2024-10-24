@@ -11,7 +11,7 @@ use std::{
     collections::{BinaryHeap, HashMap},
     io::Error,
     thread::sleep,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use xcap::Window;
 
@@ -46,6 +46,7 @@ pub struct WebfishingPlayer<'a> {
     window: &'a Window,
     cur_string_positions: HashMap<i32, i32>,
     strings_played: [bool; 6],
+    last_string_usage_time: [Instant; 6],
     skip_overlapping: bool,
     loop_midi: bool,
     is_first_song: bool,
@@ -79,6 +80,7 @@ impl<'a> WebfishingPlayer<'a> {
             window,
             cur_string_positions: HashMap::new(),
             strings_played: [false; 6],
+            last_string_usage_time: [Instant::now(); 6],
             skip_overlapping,
             loop_midi,
             is_first_song,
@@ -105,6 +107,53 @@ impl<'a> WebfishingPlayer<'a> {
                 });
             }
         }
+    }
+
+    fn find_best_string(&mut self, note: u8) -> Option<GuitarPosition> {
+        let string_notes = [
+            [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55], // low E
+            [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60], // A
+            [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65], // D
+            [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], // G
+            [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74], // B
+            [64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79], // high E
+        ];
+
+        let int_note = note as i32;
+        let current_time = Instant::now();
+
+        // Create a vector to hold candidates based on last usage time
+        let mut candidates: Vec<(i32, i32)> = Vec::new();
+
+        for (string_index, notes) in string_notes.iter().enumerate() {
+            if self.strings_played[string_index] {
+                continue; // Skip if this string has already been played
+            }
+
+            if let Some(fret) = notes.iter().position(|&n| n == int_note) {
+                // Found a match, add to candidates
+                candidates.push((string_index as i32, fret.try_into().unwrap()));
+            }
+        }
+
+        // Sort candidates by last usage time (ascending order)
+        candidates.sort_by_key(|&index| {
+            let string_index = index.0 as usize;
+            self.last_string_usage_time[string_index]
+        });
+
+        // Select the best candidate (the one with the least last usage time)
+        if let Some(&(string_index, fret)) = candidates.first() {
+            // Update last usage time for the selected string
+            self.last_string_usage_time[string_index as usize] = current_time;
+
+            return Some(GuitarPosition {
+                string: string_index,
+                fret,
+            });
+        }
+
+        None // No suitable string found
     }
 
     pub fn play(&mut self) {
@@ -181,57 +230,28 @@ impl<'a> WebfishingPlayer<'a> {
         }
     }
 
-    fn midi_note_to_guitar_position(&self, note: u8) -> GuitarPosition {
-        // Define the open string notes (in MIDI notes)
-        let open_strings = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
-
-        // Find the highest string that's not higher than our note
-        let string = open_strings
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|&(_, &open_note)| open_note <= note)
-            .map(|(index, _)| index)
-            .unwrap_or(0); // Default to lowest string if note is very low
-
-        // Calculate the fret by subtracting the open string note from our note
-        let fret = (note - open_strings[string]) as i32;
-        let string = string as i32;
-
-        GuitarPosition { string, fret }
-    }
-
     fn play_note(&mut self, note: u8) {
         let note = note.clamp(MIN_NOTE, MAX_NOTE);
-        let position = self.midi_note_to_guitar_position(note);
 
-        if self.strings_played[position.string as usize] {
-            warn!(
-                "Note {} played on string {} fret {} overlaps",
+        // Use the find_best_string function to get the guitar position
+        if let Some(position) = self.find_best_string(note) {
+            info!(
+                "Playing note {} on string {} fret {}",
                 note,
                 position.string + 1,
                 position.fret
             );
-            if self.skip_overlapping {
-                info!("Skipping note {}", note);
-                return;
-            }
+
+            // Set fret position
+            self.set_fret(position.string, position.fret);
+
+            // Strum the string
+            self.strum_string(position.string);
+
+            self.strings_played[position.string as usize] = true;
+        } else {
+            warn!("No suitable string found for note {}", note);
         }
-
-        info!(
-            "Playing note {} on string {} fret {}",
-            note,
-            position.string + 1,
-            position.fret
-        );
-
-        // Set fret position
-        self.set_fret(position.string, position.fret);
-
-        // Strum the string
-        self.strum_string(position.string);
-
-        self.strings_played[position.string as usize] = true;
     }
 
     fn set_fret(&mut self, string: i32, fret: i32) {

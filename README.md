@@ -1,6 +1,6 @@
 # webfishing-midi
 cross-platform midi player for the webfishing guitar!\
-**Warning** ⚠️: ~~the code may or may not be slop, I am not experienced with midi format~~ the code is definnitely slop now uwu
+**Warning** ⚠️: ~~the code may or may not be slop, I am not experienced with midi format~~ the code is definitely slop now uwu
 
 ## Installation & Usage
 Linux users may need additional runtime dependencies see [here](https://github.com/enigo-rs/enigo?tab=readme-ov-file#runtime-dependencies) and [here](https://github.com/nashaofu/xcap/?tab=readme-ov-file#linux-system-requirements)
