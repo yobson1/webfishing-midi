@@ -1,6 +1,5 @@
 mod webfishing_player;
-use dialoguer::Input;
-use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
+use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input};
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
@@ -38,13 +37,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut song_queue: Vec<(Vec<u8>, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
 
-    let framerate_input: String = Input::with_theme(&theme)
+    let min_framerate: u64 = Input::with_theme(&theme)
         .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes. Default:")
-        .default("40".to_string())
+        .default(40)
         .interact_text()?;
-
-    // Parse the framerate input to a u64
-    let min_framerate: u64 = framerate_input.parse().unwrap_or(40);
 
     // Calculate the ideal delay in milliseconds
     let input_sleep_duration: u64 = (1000 / min_framerate) as u64;
