@@ -49,7 +49,7 @@ pub struct WebfishingPlayer<'a> {
     last_string_usage_time: [Instant; 6],
     input_sleep_duration: u64,
     loop_midi: bool,
-    is_first_song: bool,
+    wait_for_user: bool,
 }
 
 struct GuitarPosition {
@@ -61,7 +61,7 @@ impl<'a> WebfishingPlayer<'a> {
     pub fn new(
         smf: Smf<'a>,
         loop_midi: bool,
-        is_first_song: bool,
+        wait_for_user: bool,
         input_sleep_duration: u64,
         window: &'a Window,
     ) -> Result<WebfishingPlayer<'a>, Error> {
@@ -83,7 +83,7 @@ impl<'a> WebfishingPlayer<'a> {
             last_string_usage_time: [Instant::now(); 6],
             input_sleep_duration,
             loop_midi,
-            is_first_song,
+            wait_for_user,
         };
 
         // For each 6 strings initialize the cur pos as 0
@@ -111,12 +111,24 @@ impl<'a> WebfishingPlayer<'a> {
 
     fn find_best_string(&mut self, note: u8) -> Option<GuitarPosition> {
         let string_notes = [
-            [40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55], // low E
-            [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60], // A
-            [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65], // D
-            [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70], // G
-            [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74], // B
-            [64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79], // high E
+            [
+                40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
+            ], // low E
+            [
+                45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+            ], // A
+            [
+                50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65,
+            ], // D
+            [
+                55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+            ], // G
+            [
+                59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74,
+            ], // B
+            [
+                64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+            ], // high E
         ];
 
         let int_note = note as i32;
@@ -166,9 +178,8 @@ impl<'a> WebfishingPlayer<'a> {
         let device_state = DeviceState::new();
 
         // Attempt to press space in-case the user's OS requires a permission pop-up for input
-        self.enigo.key(Key::Space, Click).unwrap();
-        if self.is_first_song
-        {
+        if self.wait_for_user {
+            self.enigo.key(Key::Space, Click).unwrap();
             println!("Tab over to the game and press backspace to start playing");
             loop {
                 if device_state.get_keys().contains(&Keycode::Backspace) {
@@ -180,7 +191,8 @@ impl<'a> WebfishingPlayer<'a> {
         // Reset the guitar to all open string
         self.set_fret(6, 0);
 
-        loop { // Start a new loop for playback
+        loop {
+            // Start a new loop for playback
             let mut last_time = 0; // Reset last_time for each loop iteration
 
             while let Some(timed_event) = self.events.pop() {
