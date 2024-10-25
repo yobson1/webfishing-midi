@@ -65,11 +65,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            // let skip_overlapping_strings = Confirm::with_theme(&theme)
-            //     .with_prompt("Skip overlapping strings? (Recommended)")
-            //     .default(true)
-            //     .interact()?;
-
             // Ask if the user wants to loop the song
 
             let loop_midi = Confirm::with_theme(&theme)
