@@ -47,7 +47,7 @@ pub struct WebfishingPlayer<'a> {
     cur_string_positions: HashMap<i32, i32>,
     strings_played: [bool; 6],
     last_string_usage_time: [Instant; 6],
-    skip_overlapping: bool,
+    input_sleep_duration: u64,
     loop_midi: bool,
     is_first_song: bool,
 }
@@ -60,9 +60,9 @@ struct GuitarPosition {
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(
         smf: Smf<'a>,
-        skip_overlapping: bool,
         loop_midi: bool,
         is_first_song: bool,
+        input_sleep_duration: u64,
         window: &'a Window,
     ) -> Result<WebfishingPlayer<'a>, Error> {
         if smf.header.format != Format::Parallel {
@@ -81,7 +81,7 @@ impl<'a> WebfishingPlayer<'a> {
             cur_string_positions: HashMap::new(),
             strings_played: [false; 6],
             last_string_usage_time: [Instant::now(); 6],
-            skip_overlapping,
+            input_sleep_duration,
             loop_midi,
             is_first_song,
         };
@@ -306,7 +306,7 @@ impl<'a> WebfishingPlayer<'a> {
         // NOTE: This sleep is needed for the game to read the input
         // espesially when it is low FPS since it checks input
         // once per frame
-        sleep(Duration::from_millis(30));
+        sleep(Duration::from_millis(self.input_sleep_duration));
         self.enigo.key(key, Release).unwrap();
     }
 

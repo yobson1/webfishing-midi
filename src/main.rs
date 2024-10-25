@@ -1,5 +1,6 @@
 mod webfishing_player;
 use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
+use dialoguer::Input;
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
@@ -35,7 +36,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.height()
     );
 
-    let mut song_queue: Vec<(Vec<u8>, bool, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
+    let mut song_queue: Vec<(Vec<u8>, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
+
+    let framerate_input: String = Input::new()
+        .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes.\nDefault is")
+        .default("40".to_string())
+        .interact_text()?;
+
+    // Parse the framerate input to a u64
+    let min_framerate: u64 = framerate_input.parse().unwrap_or(40);
+
+    // Calculate the ideal delay in milliseconds
+    let input_sleep_duration: u64 = (1000 / min_framerate) as u64;
 
     loop {
         let mut default_selection = 0;
@@ -57,7 +69,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             //     .with_prompt("Skip overlapping strings? (Recommended)")
             //     .default(true)
             //     .interact()?;
-            let skip_overlapping_strings = false;
+
+            // Ask if the user wants to loop the song
 
             let loop_midi = Confirm::with_theme(&theme)
                 .with_prompt("Loop? (Hold ESC to stop)")
@@ -65,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .interact()?;
 
             // Add the selected song to the queue
-            song_queue.push((midi_data, skip_overlapping_strings, loop_midi));
+            song_queue.push((midi_data, loop_midi));
 
             if loop_midi {
                 break; // Exit the selection loop
@@ -83,12 +96,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Play all songs in the queue
-        for (index, (midi_data, skip_overlapping_strings, loop_midi)) in song_queue.iter().enumerate() {
+        for (index, (midi_data, loop_midi)) in song_queue.iter().enumerate() {
             let smf = Smf::parse(midi_data).expect("Failed to parse MIDI data");
 
             let is_first_song = index == 0;
 
-            let mut player = match WebfishingPlayer::new(smf, *skip_overlapping_strings, *loop_midi, is_first_song, &window) {
+            let mut player = match WebfishingPlayer::new(smf, *loop_midi, is_first_song, input_sleep_duration, &window) {
                 Ok(player) => player,
                 Err(e) => {
                     error!("Error creating player: {}", e);
