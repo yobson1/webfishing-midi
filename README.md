@@ -3,7 +3,8 @@ cross-platform midi player for the webfishing guitar!\
 **Warning** ⚠️: the code may or may not be slop, I am not experienced with midi format
 
 ## Installation & Usage
-Linux users may need additional runtime dependencies see [here](https://github.com/enigo-rs/enigo?tab=readme-ov-file#runtime-dependencies) and [here](https://github.com/nashaofu/xcap/?tab=readme-ov-file#linux-system-requirements)
+Linux users may need additional runtime dependencies see [here](https://github.com/enigo-rs/enigo?tab=readme-ov-file#runtime-dependencies) and [here](https://github.com/nashaofu/xcap/?tab=readme-ov-file#linux-system-requirements)\
+Windows users may need to install Microsoft [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 - Download the executable for your platform from [here](https://github.com/yobson1/webfishing-midi/releases)
 - Place your midi files in the `./midi` directory next to the executable
 - Run webfishing-midi
