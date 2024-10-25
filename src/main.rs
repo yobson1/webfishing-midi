@@ -1,6 +1,6 @@
 mod webfishing_player;
-use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
 use dialoguer::Input;
+use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect};
 use log::{error, info};
 use midly::Smf;
 use simple_logger::SimpleLogger;
@@ -38,8 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut song_queue: Vec<(Vec<u8>, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
 
-    let framerate_input: String = Input::new()
-        .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes.\nDefault is")
+    let framerate_input: String = Input::with_theme(&theme)
+        .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes. Default:")
         .default("40".to_string())
         .interact_text()?;
 
@@ -101,7 +101,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let is_first_song = index == 0;
 
-            let mut player = match WebfishingPlayer::new(smf, *loop_midi, is_first_song, input_sleep_duration, &window) {
+            let mut player = match WebfishingPlayer::new(
+                smf,
+                *loop_midi,
+                is_first_song,
+                input_sleep_duration,
+                &window,
+            ) {
                 Ok(player) => player,
                 Err(e) => {
                     error!("Error creating player: {}", e);
@@ -128,8 +134,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
-
 fn get_window(name: &str) -> Option<Window> {
     let windows = Window::all().unwrap();
     windows.into_iter().find(|w| w.app_name() == name)
@@ -155,7 +159,11 @@ fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathB
         items.extend(folder_names.iter().map(|name| format!("[Folder] {}", name)));
 
         // Add MIDI file names
-        items.extend(midi_files.iter().map(|path| path.file_name().unwrap().to_str().unwrap().to_string()));
+        items.extend(
+            midi_files
+                .iter()
+                .map(|path| path.file_name().unwrap().to_str().unwrap().to_string()),
+        );
 
         let selection = FuzzySelect::with_theme(theme)
             .with_prompt("Select a midi file or folder to navigate")
@@ -167,8 +175,7 @@ fn get_midi_selection(theme: &ColorfulTheme, default_selection: usize) -> (PathB
         if selection == 0 && current_dir == PathBuf::from(MIDI_DIR) {
             // Refresh list
             current_dir = current_dir;
-        }
-        else if selection == 0 && current_dir.parent().is_some() {
+        } else if selection == 0 && current_dir.parent().is_some() {
             // Navigate to the parent folder
             current_dir = current_dir.parent().unwrap().to_path_buf();
         } else if selection < folder_names.len() + 1 {
