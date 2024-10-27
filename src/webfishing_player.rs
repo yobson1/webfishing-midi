@@ -257,6 +257,7 @@ impl<'a> WebfishingPlayer<'a> {
                         midly::MidiMessage::NoteOn { key, vel } => {
                             if vel.as_int() > 0 {
                                 let note = (key.as_int() as i8 + self.shift) as u8;
+                                info!("Note on: {} track {}", note, timed_event.track);
                                 self.play_note(note);
                             }
                         }
