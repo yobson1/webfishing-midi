@@ -50,6 +50,7 @@ pub struct WebfishingPlayer<'a> {
     input_sleep_duration: u64,
     loop_midi: bool,
     wait_for_user: bool,
+    tracks: &'a Vec<usize>,
 }
 
 struct GuitarPosition {
@@ -64,6 +65,7 @@ impl<'a> WebfishingPlayer<'a> {
         wait_for_user: bool,
         input_sleep_duration: u64,
         window: &'a Window,
+        tracks: &'a Vec<usize>,
     ) -> Result<Self, Error> {
         if smf.header.format != Format::Parallel {
             warn!("Format not parallel");
@@ -84,6 +86,7 @@ impl<'a> WebfishingPlayer<'a> {
             input_sleep_duration,
             loop_midi,
             wait_for_user,
+            tracks,
         };
 
         // For each 6 strings initialize the cur pos as 0
@@ -97,9 +100,15 @@ impl<'a> WebfishingPlayer<'a> {
 
     fn prepare_events(&mut self) {
         for (track_num, track) in self.smf.tracks.clone().iter().enumerate() {
+            let should_play = self.tracks.contains(&track_num);
+
             let mut absolute_time = 0;
             for event in track {
                 absolute_time += event.delta.as_int() as u64;
+                // Skip non-meta events
+                if !should_play && !matches!(event.kind, TrackEventKind::Meta(_)) {
+                    continue;
+                }
                 self.events.push(TimedEvent {
                     absolute_time,
                     event: *event,

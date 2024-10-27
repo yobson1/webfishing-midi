@@ -1,7 +1,8 @@
 mod webfishing_player;
-use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input};
+use core::str;
+use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input, MultiSelect};
 use log::{error, info};
-use midly::Smf;
+use midly::{MetaMessage, Smf, TrackEventKind};
 use simple_logger::SimpleLogger;
 use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
 use webfishing_player::WebfishingPlayer;
@@ -14,6 +15,7 @@ struct PlayerSettings<'a> {
     _data: Vec<u8>,
     smf: Smf<'a>,
     loop_midi: bool,
+    tracks: Option<Vec<usize>>,
 }
 
 impl<'a> PlayerSettings<'a> {
@@ -26,6 +28,7 @@ impl<'a> PlayerSettings<'a> {
             _data: midi_data,
             smf,
             loop_midi,
+            tracks: None,
         })
     }
 }
@@ -88,13 +91,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .interact()?;
 
             // Add the selected song to the queue
-            let settings = match PlayerSettings::new(midi_data, loop_midi) {
+            let mut settings = match PlayerSettings::new(midi_data, loop_midi) {
                 Ok(settings) => settings,
                 Err(e) => {
                     error!("Failed to parse MIDI data: {}", e);
                     continue;
                 }
             };
+
+            // Ask the user which tracks to play
+            let mut tracks = Vec::new();
+            for (i, track) in settings.smf.tracks.iter().enumerate() {
+                let mut track_name = "Unknown";
+                for event in track {
+                    match event.kind {
+                        TrackEventKind::Meta(MetaMessage::TrackName(name)) => {
+                            track_name =
+                                str::from_utf8(name).unwrap_or("Failed to decode track name");
+                            break;
+                        }
+                        _ => continue,
+                    }
+                }
+                tracks.push(format!("{}: {}", i, track_name));
+            }
+            let chosen_tracks = MultiSelect::with_theme(&theme)
+                .with_prompt("Which tracks to play?")
+                .items(&tracks)
+                .defaults(&vec![true; tracks.len()])
+                .interact()?;
+
+            settings.tracks = Some(chosen_tracks);
+
             song_queue.push(settings);
 
             if loop_midi {
@@ -115,6 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Play all songs in the queue
         for (index, settings) in song_queue.iter().enumerate() {
             let is_first_song = index == 0;
+            let tracks = settings.tracks.clone().expect("Failed to get tracks");
 
             let mut player = match WebfishingPlayer::new(
                 &settings.smf,
@@ -122,6 +151,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 is_first_song,
                 input_sleep_duration,
                 &window,
+                &tracks,
             ) {
                 Ok(player) => player,
                 Err(e) => {
