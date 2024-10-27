@@ -4,6 +4,7 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings,
 };
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
 use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
@@ -74,6 +75,7 @@ pub struct WebfishingPlayer<'a> {
     loop_midi: bool,
     wait_for_user: bool,
     tracks: Vec<usize>,
+    multi: &'a MultiProgress,
     _data: Vec<u8>,
 }
 
@@ -88,6 +90,7 @@ impl<'a> WebfishingPlayer<'a> {
         wait_for_user: bool,
         input_sleep_duration: u64,
         window: &'a Window,
+        multi: &'a MultiProgress,
     ) -> Result<Self, Error> {
         let smf = settings.smf;
         if smf.header.format != Format::Parallel {
@@ -110,6 +113,7 @@ impl<'a> WebfishingPlayer<'a> {
             loop_midi: settings.loop_midi,
             wait_for_user,
             tracks: settings.tracks.unwrap_or(Vec::new()),
+            multi,
             _data: settings._data,
         };
 
@@ -224,23 +228,38 @@ impl<'a> WebfishingPlayer<'a> {
         // Reset the guitar to all open string
         self.set_fret(6, 0);
 
+        let final_tick = self.events.iter().last().unwrap().absolute_time;
         loop {
             // Start a new loop for playback
-            let mut last_time = 0; // Reset last_time for each loop iteration
+            let mut last_tick = 0; // Reset last_time for each loop iteration
+            let pb = self.multi.add(ProgressBar::new(final_tick));
+            pb.set_style(
+                ProgressStyle::with_template("[{elapsed_precise}] {wide_bar:.cyan/blue}").unwrap(),
+            );
 
             while let Some(timed_event) = self.events.pop() {
-                let keys = device_state.get_keys();
-                if keys.contains(&Keycode::Escape) {
+                if device_state.get_keys().contains(&Keycode::Escape) {
                     info!("Song interrupted");
                     return; // Exit the play method
                 }
 
-                let wait_time = timed_event.absolute_time - last_time;
-                if wait_time > 0 {
+                let wait_ticks = timed_event.absolute_time - last_tick;
+                if wait_ticks > 0 {
                     self.strings_played = [false; 6];
-                    sleep(Duration::from_micros(wait_time * self.micros_per_tick));
+                    // Sleep for one tick at a time so we can check for escape
+                    // and update the progress bar more smoothly
+                    for current_tick in last_tick..timed_event.absolute_time {
+                        sleep(Duration::from_micros(self.micros_per_tick));
+                        pb.set_position(current_tick + 1);
+
+                        // Check for escape during the wait
+                        if device_state.get_keys().contains(&Keycode::Escape) {
+                            info!("Song interrupted during wait");
+                            return;
+                        }
+                    }
                 }
-                last_time = timed_event.absolute_time;
+                last_tick = timed_event.absolute_time;
 
                 match timed_event.event.kind {
                     TrackEventKind::Meta(midly::MetaMessage::Tempo(tempo)) => {
@@ -265,7 +284,12 @@ impl<'a> WebfishingPlayer<'a> {
                     },
                     _ => {}
                 }
+
+                pb.set_position(timed_event.absolute_time as u64);
             }
+
+            pb.finish();
+            self.multi.remove(&pb);
 
             if self.loop_midi {
                 info!("Looping the MIDI playback (Hold ESC to stop)");

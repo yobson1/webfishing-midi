@@ -1,6 +1,8 @@
 mod webfishing_player;
 use core::str;
 use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input, MultiSelect};
+use indicatif::MultiProgress;
+use indicatif_log_bridge::LogWrapper;
 use log::{error, info};
 use midly::{MetaMessage, TrackEventKind};
 use simple_logger::SimpleLogger;
@@ -12,10 +14,11 @@ const MIDI_DIR: &str = "./midi";
 const WINDOW_NAMES: [&str; 3] = ["steam_app_3146520", "Fish! (On the WEB!)", "Godot_Engine"];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    SimpleLogger::new()
+    let logger = SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
-        .without_timestamps()
-        .init()?;
+        .without_timestamps();
+    let multi = MultiProgress::new();
+    LogWrapper::new(multi.clone(), logger).try_init()?;
     let theme = ColorfulTheme::default();
 
     let window = WINDOW_NAMES
@@ -123,15 +126,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for (index, settings) in song_queue.into_iter().enumerate() {
             let is_first_song = index == 0;
 
-            let mut player =
-                match WebfishingPlayer::new(settings, is_first_song, input_sleep_duration, &window)
-                {
-                    Ok(player) => player,
-                    Err(e) => {
-                        error!("Error creating player: {}", e);
-                        continue;
-                    }
-                };
+            let mut player = match WebfishingPlayer::new(
+                settings,
+                is_first_song,
+                input_sleep_duration,
+                &window,
+                &multi,
+            ) {
+                Ok(player) => player,
+                Err(e) => {
+                    error!("Error creating player: {}", e);
+                    continue;
+                }
+            };
 
             player.play();
         }
