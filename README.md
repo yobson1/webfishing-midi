@@ -10,7 +10,7 @@ Windows users may need to install Microsoft [Visual C++ Redistributable](https:/
 - Run webfishing-midi
 - Select a song by typing a name to search and/or using the arrow keys & enter to make a selection
 - Tab over to the game and press backspace to start playing
-- Press space to pause/resume playing
+- Press right shift to pause/resume playing
 - Press escape to stop playing
 
 ### Interface

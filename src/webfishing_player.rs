@@ -229,7 +229,7 @@ impl<'a> WebfishingPlayer<'a> {
         if keys.contains(&Keycode::Escape) {
             return true;
         }
-        if keys.contains(&Keycode::Space) {
+        if keys.contains(&Keycode::RShift) {
             self.toggle_pause();
             // Add a small delay to prevent multiple toggles
             sleep(Duration::from_millis(200));
@@ -246,7 +246,7 @@ impl<'a> WebfishingPlayer<'a> {
 
         let device_state = DeviceState::new();
 
-        println!("Escape to stop the song, space to pause");
+        println!("Escape to stop the song, right shift to pause/play");
         if self.wait_for_user {
             // Attempt to press space in-case the user's OS requires a permission pop-up for input
             self.enigo.key(Key::Space, Click).unwrap();
