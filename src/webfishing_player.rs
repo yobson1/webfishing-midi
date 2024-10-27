@@ -37,6 +37,28 @@ impl<'a> PartialOrd for TimedEvent<'a> {
     }
 }
 
+pub struct PlayerSettings<'a> {
+    _data: Vec<u8>,
+    pub smf: Smf<'a>,
+    pub loop_midi: bool,
+    pub tracks: Option<Vec<usize>>,
+}
+
+impl<'a> PlayerSettings<'a> {
+    pub fn new(midi_data: Vec<u8>, loop_midi: bool) -> Result<Self, midly::Error> {
+        let smf = Smf::parse(&midi_data)?;
+        // This is safe because we keep midi_data & smf alive in the struct
+        let smf = unsafe { std::mem::transmute::<Smf<'_>, Smf<'a>>(smf) };
+
+        Ok(PlayerSettings {
+            _data: midi_data,
+            smf,
+            loop_midi,
+            tracks: None,
+        })
+    }
+}
+
 pub struct WebfishingPlayer<'a> {
     smf: &'a Smf<'a>,
     shift: i8,

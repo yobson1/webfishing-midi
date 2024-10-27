@@ -2,36 +2,14 @@ mod webfishing_player;
 use core::str;
 use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input, MultiSelect};
 use log::{error, info};
-use midly::{MetaMessage, Smf, TrackEventKind};
+use midly::{MetaMessage, TrackEventKind};
 use simple_logger::SimpleLogger;
 use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
-use webfishing_player::WebfishingPlayer;
+use webfishing_player::{PlayerSettings, WebfishingPlayer};
 use xcap::Window;
 
 const MIDI_DIR: &str = "./midi";
 const WINDOW_NAMES: [&str; 3] = ["steam_app_3146520", "Fish! (On the WEB!)", "Godot_Engine"];
-
-struct PlayerSettings<'a> {
-    _data: Vec<u8>,
-    smf: Smf<'a>,
-    loop_midi: bool,
-    tracks: Option<Vec<usize>>,
-}
-
-impl<'a> PlayerSettings<'a> {
-    fn new(midi_data: Vec<u8>, loop_midi: bool) -> Result<Self, midly::Error> {
-        let smf = Smf::parse(&midi_data)?;
-        // This is safe because we keep midi_data & smf alive in the struct
-        let smf = unsafe { std::mem::transmute::<Smf<'_>, Smf<'a>>(smf) };
-
-        Ok(PlayerSettings {
-            _data: midi_data,
-            smf,
-            loop_midi,
-            tracks: None,
-        })
-    }
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
