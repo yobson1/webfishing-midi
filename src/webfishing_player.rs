@@ -345,8 +345,7 @@ impl<'a> WebfishingPlayer<'a> {
                         midly::MidiMessage::NoteOn { key, vel } => {
                             if vel.as_int() > 0 {
                                 let note = (key.as_int() as i8 + self.shift) as u8;
-                                debug!("Note on: {} track {}", note, timed_event.track);
-                                self.play_note(note);
+                                self.play_note(note, timed_event.track);
 
                                 // Update elapsed for the input sleep
                                 let new_elapsed =
@@ -376,16 +375,17 @@ impl<'a> WebfishingPlayer<'a> {
         }
     }
 
-    fn play_note(&mut self, note: u8) {
+    fn play_note(&mut self, note: u8, track: u32) {
         let note = note.clamp(MIN_NOTE, MAX_NOTE);
 
         // Use the find_best_string function to get the guitar position
         if let Some(position) = self.find_best_string(note) {
-            debug!(
-                "Playing note {} on string {} fret {}",
+            info!(
+                "Playing note {} on string {} fret {} - track {}",
                 note,
                 position.string + 1,
-                position.fret
+                position.fret,
+                track
             );
 
             // Set fret position
