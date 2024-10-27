@@ -88,8 +88,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .interact()?;
 
             // Add the selected song to the queue
-            let settings =
-                PlayerSettings::new(midi_data, loop_midi).expect("Failed to parse MIDI file");
+            let settings = match PlayerSettings::new(midi_data, loop_midi) {
+                Ok(settings) => settings,
+                Err(e) => {
+                    error!("Failed to parse MIDI data: {}", e);
+                    continue;
+                }
+            };
             song_queue.push(settings);
 
             if loop_midi {
