@@ -37,6 +37,7 @@ impl<'a> PartialOrd for TimedEvent<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct PlayerSettings<'a> {
     _data: Vec<u8>,
     pub smf: Smf<'a>,
@@ -60,7 +61,7 @@ impl<'a> PlayerSettings<'a> {
 }
 
 pub struct WebfishingPlayer<'a> {
-    smf: &'a Smf<'a>,
+    smf: Smf<'a>,
     shift: i8,
     micros_per_tick: u64,
     events: BinaryHeap<TimedEvent<'a>>,
@@ -72,7 +73,8 @@ pub struct WebfishingPlayer<'a> {
     input_sleep_duration: u64,
     loop_midi: bool,
     wait_for_user: bool,
-    tracks: &'a Vec<usize>,
+    tracks: Vec<usize>,
+    _data: Vec<u8>,
 }
 
 struct GuitarPosition {
@@ -82,18 +84,17 @@ struct GuitarPosition {
 
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(
-        smf: &'a Smf<'a>,
-        loop_midi: bool,
+        settings: PlayerSettings<'a>,
         wait_for_user: bool,
         input_sleep_duration: u64,
         window: &'a Window,
-        tracks: &'a Vec<usize>,
     ) -> Result<Self, Error> {
+        let smf = settings.smf;
         if smf.header.format != Format::Parallel {
             warn!("Format not parallel");
         }
 
-        let notes = WebfishingPlayer::get_notes(smf);
+        let notes = WebfishingPlayer::get_notes(&smf);
         let shift = WebfishingPlayer::calculate_optimal_shift(&notes);
         let mut player = WebfishingPlayer {
             smf,
@@ -106,9 +107,10 @@ impl<'a> WebfishingPlayer<'a> {
             strings_played: [false; 6],
             last_string_usage_time: [Instant::now(); 6],
             input_sleep_duration,
-            loop_midi,
+            loop_midi: settings.loop_midi,
             wait_for_user,
-            tracks,
+            tracks: settings.tracks.unwrap_or(Vec::new()),
+            _data: settings._data,
         };
 
         // For each 6 strings initialize the cur pos as 0

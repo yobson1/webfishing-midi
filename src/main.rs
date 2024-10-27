@@ -36,8 +36,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.height()
     );
 
-    let mut song_queue: Vec<PlayerSettings> = Vec::new();
-
     let min_framerate: u64 = Input::with_theme(&theme)
         .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes. Default:")
         .default(40)
@@ -47,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_sleep_duration: u64 = (1000 / min_framerate) as u64;
 
     loop {
+        let mut song_queue: Vec<PlayerSettings> = Vec::new();
         let mut default_selection = 0;
 
         // Selection loop for adding songs to the queue
@@ -121,30 +120,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Play all songs in the queue
-        for (index, settings) in song_queue.iter().enumerate() {
+        for (index, settings) in song_queue.into_iter().enumerate() {
             let is_first_song = index == 0;
-            let tracks = settings.tracks.clone().expect("Failed to get tracks");
 
-            let mut player = match WebfishingPlayer::new(
-                &settings.smf,
-                settings.loop_midi,
-                is_first_song,
-                input_sleep_duration,
-                &window,
-                &tracks,
-            ) {
-                Ok(player) => player,
-                Err(e) => {
-                    error!("Error creating player: {}", e);
-                    continue;
-                }
-            };
+            let mut player =
+                match WebfishingPlayer::new(settings, is_first_song, input_sleep_duration, &window)
+                {
+                    Ok(player) => player,
+                    Err(e) => {
+                        error!("Error creating player: {}", e);
+                        continue;
+                    }
+                };
 
             player.play();
         }
-
-        // Clear the queue after playing
-        song_queue.clear();
 
         // Ask if the user wants to play another song
         let confirmation = Confirm::with_theme(&theme)
