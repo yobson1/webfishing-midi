@@ -5,7 +5,7 @@ use enigo::{
     Enigo, Key, Keyboard, Mouse, Settings,
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
-use log::{info, warn};
+use log::{debug, info, warn};
 use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
     cmp::Ordering,
@@ -345,7 +345,7 @@ impl<'a> WebfishingPlayer<'a> {
                         midly::MidiMessage::NoteOn { key, vel } => {
                             if vel.as_int() > 0 {
                                 let note = (key.as_int() as i8 + self.shift) as u8;
-                                info!("Note on: {} track {}", note, timed_event.track);
+                                debug!("Note on: {} track {}", note, timed_event.track);
                                 self.play_note(note);
 
                                 // Update elapsed for the input sleep
@@ -381,7 +381,7 @@ impl<'a> WebfishingPlayer<'a> {
 
         // Use the find_best_string function to get the guitar position
         if let Some(position) = self.find_best_string(note) {
-            info!(
+            debug!(
                 "Playing note {} on string {} fret {}",
                 note,
                 position.string + 1,
@@ -426,7 +426,7 @@ impl<'a> WebfishingPlayer<'a> {
         let fret_x = self.window.x() + (scaled_left + (string * scaled_string));
         let fret_y = self.window.y() + (scaled_top + (fret * scaled_fret));
 
-        info!(
+        debug!(
             "x: {} y: {} | scale_x {:.3} scale_y {:.3}",
             fret_x, fret_y, scale_x, scale_y
         );
