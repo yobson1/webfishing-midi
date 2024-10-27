@@ -82,18 +82,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Ask the user which tracks to play
             let mut tracks = Vec::new();
             for (i, track) in settings.smf.tracks.iter().enumerate() {
-                let mut track_name = "Unknown";
+                let mut track_name = "";
+                let mut instrument_name = "";
                 for event in track {
                     match event.kind {
                         TrackEventKind::Meta(MetaMessage::TrackName(name)) => {
                             track_name =
                                 str::from_utf8(name).unwrap_or("Failed to decode track name");
-                            break;
+                        }
+                        TrackEventKind::Meta(MetaMessage::InstrumentName(name)) => {
+                            instrument_name =
+                                str::from_utf8(name).unwrap_or("Failed to decode instrument name");
                         }
                         _ => continue,
                     }
                 }
-                tracks.push(format!("{}: {}", i, track_name));
+                tracks.push(format!(
+                    "{}: {}{}{}",
+                    i,
+                    if track_name.is_empty() && instrument_name.is_empty() {
+                        "Unknown"
+                    } else {
+                        track_name
+                    },
+                    if track_name.is_empty() || instrument_name.is_empty() {
+                        ""
+                    } else {
+                        " - "
+                    },
+                    instrument_name
+                ));
             }
             let chosen_tracks = MultiSelect::with_theme(&theme)
                 .with_prompt(
