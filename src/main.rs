@@ -3,19 +3,188 @@ use core::str;
 use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input, MultiSelect};
 use indicatif::MultiProgress;
 use indicatif_log_bridge::LogWrapper;
-use log::{error, info};
-use midly::{MetaMessage, TrackEventKind};
+use log::{debug, error, info};
+use midly::{MetaMessage, MidiMessage, TrackEventKind};
 use simple_logger::SimpleLogger;
 use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
+use tabled::{builder::Builder, settings::Style};
 use webfishing_player::{PlayerSettings, WebfishingPlayer};
 use xcap::Window;
 
 const MIDI_DIR: &str = "./midi";
 const WINDOW_NAMES: [&str; 3] = ["steam_app_3146520", "Fish! (On the WEB!)", "Godot_Engine"];
 
+// https://en.wikipedia.org/wiki/General_MIDI#Program_change_events
+// https://github.com/ryohey/signal/blob/main/app/src/components/TrackList/InstrumentName.tsx
+const INSTRUMENTS: [&str; 128] = [
+    // Piano
+    "Acoustic Grand Piano",
+    "Bright Acoustic Piano",
+    "Electric Grand Piano",
+    "Honky-tonk Piano",
+    "Electric Piano 1",
+    "Electric Piano 2",
+    "Harpsichord",
+    "Clavinet",
+
+    // Chromatic Percussion
+    "Celesta",
+    "Glockenspiel",
+    "Music Box",
+    "Vibraphone",
+    "Marimba",
+    "Xylophone",
+    "Tubular Bells",
+    "Dulcimer or Santoor",
+
+    // Organ
+    "Drawbar Organ",
+    "Percussive Organ",
+    "Rock Organ",
+    "Church Organ",
+    "Reed Organ",
+    "Accordion",
+    "Harmonica",
+    "Bandoneon or Tango Accordion",
+
+    // Guitar
+    "Acoustic Guitar (nylon)",
+    "Acoustic Guitar (steel)",
+    "Electric Guitar (jazz)",
+    "Electric Guitar (clean)",
+    "Electric Guitar (muted)",
+    "Electric Guitar (overdrive)",
+    "Electric Guitar (distortion)",
+    "Electric Guitar (harmonics)",
+
+    // Bass
+    "Acoustic Bass",
+    "Electric Bass (finger)",
+    "Electric Bass (picked)",
+    "Electric Bass (fretless)",
+    "Slap Bass 1",
+    "Slap Bass 2",
+    "Synth Bass 1",
+    "Synth Bass 2",
+
+    // Strings
+    "Violin",
+    "Viola",
+    "Cello",
+    "Contrabass",
+    "Tremolo Strings",
+    "Pizzicato Strings",
+    "Orchestral Harp",
+    "Timpani",
+
+    // Ensemble
+    "String Ensemble 1",
+    "String Ensemble 2",
+    "Synth Strings 1",
+    "Synth Strings 2",
+    "Choir Aahs",
+    "Voice Oohs or Doos",
+    "Synth Voice or Synth Choir",
+    "Orchestra Hit",
+
+    // Brass
+    "Trumpet",
+    "Trombone",
+    "Tuba",
+    "Muted Trumpet",
+    "French Horn",
+    "Brass Section",
+    "Synth Brass 1",
+    "Synth Brass 2",
+
+    // Reed
+    "Soprano Sax",
+    "Alto Sax",
+    "Tenor Sax",
+    "Baritone Sax",
+    "Oboe",
+    "English Horn",
+    "Bassoon",
+    "Clarinet",
+
+    // Pipe
+    "Piccolo",
+    "Flute",
+    "Recorder",
+    "Pan Flute",
+    "Blown Bottle",
+    "Shakuhachi",
+    "Whistle",
+    "Ocarina",
+
+    // Synth Lead
+    "Lead 1 (square, often chorused)",
+    "Lead 2 (sawtooth or saw, often chorused)",
+    "Lead 3 (calliope, usually resembling a woodwind)",
+    "Lead 4 (chiff)",
+    "Lead 5 (charang, a guitar-like lead)",
+    "Lead 6 (voice, derived from 'synth voice' with faster attack)",
+    "Lead 7 (fifths)",
+    "Lead 8 (bass and lead or solo lead)",
+
+    // Synth Pad
+    "Pad 1 (new age, pad stacked with a bell, often derived from 'Fantasia' patch from Roland D-50)",
+    "Pad 2 (warm, a mellower pad with slow attack)",
+    "Pad 3 (polysynth or poly, a saw-like percussive pad resembling an early 1980s polyphonic synthesizer)",
+    "Pad 4 (choir, identical to 'synth voice' with longer decay)",
+    "Pad 5 (bowed glass or bowed, a sound resembling a glass harmonica)",
+    "Pad 6 (metallic, often created from a piano or guitar sample with removed attack)",
+    "Pad 7 (halo, choir-like pad, often with a filter effect)",
+    "Pad 8 (sweep, pad with a pronounced 'wah' filter effect)",
+
+    // Synth Effects
+    "FX 1 (rain, a bright pluck with echoing pulses that decreases in pitch)",
+    "FX 2 (soundtrack, a bright perfect fifth pad)",
+    "FX 3 (crystal, a synthesized bell sound)",
+    "FX 4 (atmosphere, usually a classical guitar-like sound)",
+    "FX 5 (brightness, bright pad stacked with choir or bell)",
+    "FX 6 (goblins, a slow-attack pad with chirping or murmuring sounds)",
+    "FX 7 (echoes or echo drops, similar to 'rain')",
+    "FX 8 (sci-fi or star theme, usually an electric guitar-like pad)",
+
+    // Ethnic
+    "Sitar",
+    "Banjo",
+    "Shamisen",
+    "Koto",
+    "Kalimba",
+    "Bagpipe",
+    "Fiddle",
+    "Shanai",
+
+    // Percussive
+    "Tinkle Bell",
+    "Agogô or Cowbell",
+    "Steel Drums",
+    "Woodblock",
+    "Taiko Drum or Surdo",
+    "Melodic Tom",
+    "Synth Drum",
+    "Reverse Cymbal",
+
+    // Sound Effects
+    "Guitar Fret Noise",
+    "Breath Noise",
+    "Seashore",
+    "Bird Tweet",
+    "Telephone Ring",
+    "Helicopter",
+    "Applause",
+    "Gunshot",
+];
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let logger = SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
+        .with_level(if cfg!(debug_assertions) {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Info
+        })
         .without_timestamps();
     let multi = MultiProgress::new();
     LogWrapper::new(multi.clone(), logger).try_init()?;
@@ -79,43 +248,82 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            // Ask the user which tracks to play
-            let mut tracks = Vec::new();
+            // progams[track] = instrument
+            let mut programs = vec![-1; settings.smf.tracks.len()];
+            // Get the "program"/instrument of each channel
             for (i, track) in settings.smf.tracks.iter().enumerate() {
-                let mut track_name = "";
-                let mut instrument_name = "";
+                for event in track {
+                    match event.kind {
+                        TrackEventKind::Midi { channel, message } => match message {
+                            MidiMessage::ProgramChange { program } => {
+                                debug!(
+                                    "Program change: {} - {} channel {} track {}",
+                                    program,
+                                    INSTRUMENTS[program.as_int() as usize],
+                                    channel,
+                                    i
+                                );
+                                if channel == 9 {
+                                    programs[i] = -128;
+                                } else {
+                                    programs[i] = program.as_int() as i8;
+                                }
+                                break;
+                            }
+                            _ => {}
+                        },
+                        _ => continue,
+                    }
+                }
+            }
+
+            // Ask the user which tracks to play
+            let mut builder = Builder::new();
+            builder.push_record(["Track #", "Track Name", "Program", "Instrument"]);
+            for (i, track) in settings.smf.tracks.iter().enumerate() {
+                let mut track_name = None;
+                let mut instrument_name = None;
+                let program_number = programs[i];
+                let program_name = if program_number == -128 {
+                    // Special case from rhythm channel
+                    "Standard Drum Kit"
+                } else {
+                    INSTRUMENTS
+                        .get(program_number as usize)
+                        .unwrap_or(&"Unknown")
+                };
+
                 for event in track {
                     match event.kind {
                         TrackEventKind::Meta(MetaMessage::TrackName(name)) => {
                             track_name =
-                                str::from_utf8(name).unwrap_or("Failed to decode track name");
+                                Some(str::from_utf8(name).unwrap_or("Failed to decode track name"));
                         }
                         TrackEventKind::Meta(MetaMessage::InstrumentName(name)) => {
-                            instrument_name =
-                                str::from_utf8(name).unwrap_or("Failed to decode instrument name");
+                            instrument_name = Some(
+                                str::from_utf8(name).unwrap_or("Failed to decode instrument name"),
+                            );
                         }
                         _ => continue,
                     }
+                    if track_name.is_some() && instrument_name.is_some() {
+                        break;
+                    }
                 }
-                tracks.push(format!(
-                    "{}: {}{}{}",
-                    i,
-                    if track_name.is_empty() && instrument_name.is_empty() {
-                        "Unknown"
-                    } else {
-                        track_name
-                    },
-                    if track_name.is_empty() || instrument_name.is_empty() {
-                        ""
-                    } else {
-                        " - "
-                    },
-                    instrument_name
-                ));
+
+                builder.push_record([
+                    i.to_string().as_str(),
+                    track_name.unwrap_or("Unknown"),
+                    program_name,
+                    instrument_name.unwrap_or("Unknown"),
+                ]);
             }
+            let table = builder.build().with(Style::psql()).to_string();
+            let tracks_tbl = table.split("\n").collect::<Vec<_>>();
+            let tracks = &tracks_tbl[2..];
             let chosen_tracks = MultiSelect::with_theme(&theme)
                 .with_prompt(
-                    "Which tracks to play? (use arrow keys and space to select, enter to confirm)",
+                    format!("Which tracks to play? (use arrow keys and space to select, enter to confirm)\n  {}\n  {}", tracks_tbl[0], tracks_tbl[1]),
                 )
                 .items(&tracks)
                 .defaults(&vec![true; tracks.len()])
