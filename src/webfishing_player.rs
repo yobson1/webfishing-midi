@@ -4,13 +4,19 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Mouse, Settings,
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use log::{info, warn};
 use midly::{Format, Smf, TrackEvent, TrackEventKind};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
+    fmt::Write,
     io::Error,
+    sync::{
+        atomic,
+        atomic::{AtomicBool, AtomicU64},
+        Arc,
+    },
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -76,6 +82,8 @@ pub struct WebfishingPlayer<'a> {
     wait_for_user: bool,
     tracks: Vec<usize>,
     multi: &'a MultiProgress,
+    paused: Arc<AtomicBool>,
+    song_elapsed_micros: Arc<AtomicU64>,
     _data: Vec<u8>,
 }
 
@@ -114,6 +122,8 @@ impl<'a> WebfishingPlayer<'a> {
             wait_for_user,
             tracks: settings.tracks.unwrap_or(Vec::new()),
             multi,
+            paused: Arc::new(AtomicBool::new(false)),
+            song_elapsed_micros: Arc::new(AtomicU64::new(0)),
             _data: settings._data,
         };
 
@@ -205,6 +215,28 @@ impl<'a> WebfishingPlayer<'a> {
         None // No suitable string found
     }
 
+    fn is_paused(&self) -> bool {
+        self.paused.load(atomic::Ordering::Relaxed)
+    }
+
+    fn toggle_pause(&self) {
+        self.paused.fetch_xor(true, atomic::Ordering::Relaxed);
+    }
+
+    // returns true if the user wants to quit
+    fn check_inputs(&mut self, device_state: &DeviceState) -> bool {
+        let keys = device_state.get_keys();
+        if keys.contains(&Keycode::Escape) {
+            return true;
+        }
+        if keys.contains(&Keycode::Space) {
+            self.toggle_pause();
+            // Add a small delay to prevent multiple toggles
+            sleep(Duration::from_millis(200));
+        }
+        false
+    }
+
     pub fn play(&mut self) {
         let timing = self.smf.header.timing;
         let ticks_per_beat = match timing {
@@ -214,8 +246,9 @@ impl<'a> WebfishingPlayer<'a> {
 
         let device_state = DeviceState::new();
 
-        // Attempt to press space in-case the user's OS requires a permission pop-up for input
+        println!("Escape to stop the song, space to pause");
         if self.wait_for_user {
+            // Attempt to press space in-case the user's OS requires a permission pop-up for input
             self.enigo.key(Key::Space, Click).unwrap();
             println!("Tab over to the game and press backspace to start playing");
             loop {
@@ -232,15 +265,36 @@ impl<'a> WebfishingPlayer<'a> {
         loop {
             // Start a new loop for playback
             let mut last_tick = 0; // Reset last_time for each loop iteration
+            self.song_elapsed_micros.store(0, atomic::Ordering::Relaxed);
+
             let pb = self.multi.add(ProgressBar::new(final_tick));
+            let paused = Arc::clone(&self.paused);
+            let elapsed = Arc::clone(&self.song_elapsed_micros);
             pb.set_style(
-                ProgressStyle::with_template("[{elapsed_precise}] {wide_bar:.cyan/blue}").unwrap(),
+                ProgressStyle::with_template("{paused} [{elapsed}] {wide_bar:.cyan/blue}")
+                    .unwrap()
+                    .with_key("paused", move |_: &ProgressState, w: &mut dyn Write| {
+                        let ch = if paused.load(atomic::Ordering::Relaxed) {
+                            "⏸"
+                        } else {
+                            "▶"
+                        };
+                        write!(w, "{}", ch).unwrap()
+                    })
+                    .with_key("elapsed", move |_: &ProgressState, w: &mut dyn Write| {
+                        let micros = elapsed.load(atomic::Ordering::Relaxed);
+                        let duration = Duration::from_micros(micros);
+                        let whole_secs = duration.as_secs();
+                        let mins = whole_secs / 60;
+                        let secs = whole_secs % 60;
+                        write!(w, "{:02}:{:02}", mins, secs).unwrap()
+                    }),
             );
 
             while let Some(timed_event) = self.events.pop() {
-                if device_state.get_keys().contains(&Keycode::Escape) {
+                if self.check_inputs(&device_state) {
                     info!("Song interrupted");
-                    return; // Exit the play method
+                    return;
                 }
 
                 let wait_ticks = timed_event.absolute_time - last_tick;
@@ -252,14 +306,29 @@ impl<'a> WebfishingPlayer<'a> {
                         sleep(Duration::from_micros(self.micros_per_tick));
                         pb.set_position(current_tick + 1);
 
-                        // Check for escape during the wait
-                        if device_state.get_keys().contains(&Keycode::Escape) {
-                            info!("Song interrupted during wait");
+                        // Update elapsed
+                        let new_elapsed = self.song_elapsed_micros.load(atomic::Ordering::Relaxed)
+                            + self.micros_per_tick;
+                        self.song_elapsed_micros
+                            .store(new_elapsed, atomic::Ordering::Relaxed);
+
+                        // Check for inputs during the wait
+                        if self.check_inputs(&device_state) {
+                            info!("Song interrupted");
                             return;
                         }
                     }
                 }
                 last_tick = timed_event.absolute_time;
+
+                // Wait while paused
+                while self.is_paused() {
+                    sleep(Duration::from_millis(100));
+                    if self.check_inputs(&device_state) {
+                        info!("Song interrupted");
+                        return;
+                    }
+                }
 
                 match timed_event.event.kind {
                     TrackEventKind::Meta(midly::MetaMessage::Tempo(tempo)) => {
@@ -278,6 +347,13 @@ impl<'a> WebfishingPlayer<'a> {
                                 let note = (key.as_int() as i8 + self.shift) as u8;
                                 info!("Note on: {} track {}", note, timed_event.track);
                                 self.play_note(note);
+
+                                // Update elapsed for the input sleep
+                                let new_elapsed =
+                                    self.song_elapsed_micros.load(atomic::Ordering::Relaxed)
+                                        + self.input_sleep_duration * 1000; // Convert ms to µs
+                                self.song_elapsed_micros
+                                    .store(new_elapsed, atomic::Ordering::Relaxed);
                             }
                         }
                         _ => {}
