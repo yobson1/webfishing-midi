@@ -94,7 +94,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracks.push(format!("{}: {}", i, track_name));
             }
             let chosen_tracks = MultiSelect::with_theme(&theme)
-                .with_prompt("Which tracks to play?")
+                .with_prompt(
+                    "Which tracks to play? (use arrow keys and space to select, enter to confirm)",
+                )
                 .items(&tracks)
                 .defaults(&vec![true; tracks.len()])
                 .interact()?;
