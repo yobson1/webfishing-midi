@@ -10,6 +10,26 @@ use xcap::Window;
 const MIDI_DIR: &str = "./midi";
 const WINDOW_NAMES: [&str; 3] = ["steam_app_3146520", "Fish! (On the WEB!)", "Godot_Engine"];
 
+struct PlayerSettings<'a> {
+    _data: Vec<u8>,
+    smf: Smf<'a>,
+    loop_midi: bool,
+}
+
+impl<'a> PlayerSettings<'a> {
+    fn new(midi_data: Vec<u8>, loop_midi: bool) -> Result<Self, midly::Error> {
+        let smf = Smf::parse(&midi_data)?;
+        // This is safe because we keep midi_data & smf alive in the struct
+        let smf = unsafe { std::mem::transmute::<Smf<'_>, Smf<'a>>(smf) };
+
+        Ok(PlayerSettings {
+            _data: midi_data,
+            smf,
+            loop_midi,
+        })
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
@@ -35,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.height()
     );
 
-    let mut song_queue: Vec<(Vec<u8>, bool)> = Vec::new(); // Store MIDI data as Vec<u8>
+    let mut song_queue: Vec<PlayerSettings> = Vec::new();
 
     let min_framerate: u64 = Input::with_theme(&theme)
         .with_prompt("\nEnter your minimum FPS.\nHigher is better, but may skip notes. Default:")
@@ -62,14 +82,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             // Ask if the user wants to loop the song
-
             let loop_midi = Confirm::with_theme(&theme)
                 .with_prompt("Loop? (Hold ESC to stop)")
                 .default(false)
                 .interact()?;
 
             // Add the selected song to the queue
-            song_queue.push((midi_data, loop_midi));
+            let settings =
+                PlayerSettings::new(midi_data, loop_midi).expect("Failed to parse MIDI file");
+            song_queue.push(settings);
 
             if loop_midi {
                 break; // Exit the selection loop
@@ -87,14 +108,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Play all songs in the queue
-        for (index, (midi_data, loop_midi)) in song_queue.iter().enumerate() {
-            let smf = Smf::parse(midi_data).expect("Failed to parse MIDI data");
-
+        for (index, settings) in song_queue.iter().enumerate() {
             let is_first_song = index == 0;
 
             let mut player = match WebfishingPlayer::new(
-                smf,
-                *loop_midi,
+                &settings.smf,
+                settings.loop_midi,
                 is_first_song,
                 input_sleep_duration,
                 &window,

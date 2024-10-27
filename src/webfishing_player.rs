@@ -38,7 +38,7 @@ impl<'a> PartialOrd for TimedEvent<'a> {
 }
 
 pub struct WebfishingPlayer<'a> {
-    smf: Smf<'a>,
+    smf: &'a Smf<'a>,
     shift: i8,
     micros_per_tick: u64,
     events: BinaryHeap<TimedEvent<'a>>,
@@ -59,17 +59,17 @@ struct GuitarPosition {
 
 impl<'a> WebfishingPlayer<'a> {
     pub fn new(
-        smf: Smf<'a>,
+        smf: &'a Smf<'a>,
         loop_midi: bool,
         wait_for_user: bool,
         input_sleep_duration: u64,
         window: &'a Window,
-    ) -> Result<WebfishingPlayer<'a>, Error> {
+    ) -> Result<Self, Error> {
         if smf.header.format != Format::Parallel {
             warn!("Format not parallel");
         }
 
-        let notes = WebfishingPlayer::get_notes(&smf);
+        let notes = WebfishingPlayer::get_notes(smf);
         let shift = WebfishingPlayer::calculate_optimal_shift(&notes);
         let mut player = WebfishingPlayer {
             smf,
