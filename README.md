@@ -10,10 +10,15 @@ Windows users may need to install Microsoft [Visual C++ Redistributable](https:/
 - Run webfishing-midi
 - Select a song by typing a name to search and/or using the arrow keys & enter to make a selection
 - Tab over to the game and press backspace to start playing
-- Press and hold ESCAPE to stop playing (this may take a moment to stop since it only checks for input when a note is played)
+- Press space to pause/resume playing
+- Press escape to stop playing
 
 ### Interface
 The program uses a simple terminal interface powered by [dialoguer](https://github.com/console-rs/dialoguer) you can select a midi by typing a name to search and using the arrow keys & enter to make a selection.
+
+#### Track selection
+When selecting a track you can use the arrow keys to navigate and space to select. Enter to confirm your selection.\
+If a track has all of it's fields as "Unknown" it is likely a meta track that has no notes and just meta messages for things like tempo changes.
 
 #### Demo
 https://github.com/user-attachments/assets/c7b81e3e-f701-4470-bc7c-66a9a4e508da
