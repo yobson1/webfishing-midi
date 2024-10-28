@@ -6,7 +6,7 @@ use indicatif::MultiProgress;
 use indicatif_log_bridge::LogWrapper;
 use instruments::INSTRUMENTS;
 use log::{debug, error, info};
-use midly::{MetaMessage, MidiMessage, TrackEventKind};
+use midly::{MetaMessage, MidiMessage, Smf, TrackEventKind};
 use simple_logger::SimpleLogger;
 use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
 use tabled::{builder::Builder, settings::Style};
@@ -86,87 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            // progams[track] = instrument
-            let mut programs = vec![-1; settings.smf.tracks.len()];
-            // Get the "program"/instrument of each channel
-            for (i, track) in settings.smf.tracks.iter().enumerate() {
-                for event in track {
-                    match event.kind {
-                        TrackEventKind::Midi { channel, message } => match message {
-                            MidiMessage::ProgramChange { program } => {
-                                debug!(
-                                    "Program change: {} - {} channel {} track {}",
-                                    program,
-                                    INSTRUMENTS[program.as_int() as usize],
-                                    channel,
-                                    i
-                                );
-                                if channel == 9 {
-                                    programs[i] = -128;
-                                } else {
-                                    programs[i] = program.as_int() as i8;
-                                }
-                                break;
-                            }
-                            _ => {}
-                        },
-                        _ => continue,
-                    }
-                }
-            }
-
-            // Ask the user which tracks to play
-            let mut builder = Builder::new();
-            builder.push_record(["Track #", "Track Name", "Program", "Instrument"]);
-            for (i, track) in settings.smf.tracks.iter().enumerate() {
-                let mut track_name = None;
-                let mut instrument_name = None;
-                let program_number = programs[i];
-                let program_name = if program_number == -128 {
-                    // Special case from rhythm channel
-                    "Standard Drum Kit"
-                } else {
-                    INSTRUMENTS
-                        .get(program_number as usize)
-                        .unwrap_or(&"Unknown")
-                };
-
-                for event in track {
-                    match event.kind {
-                        TrackEventKind::Meta(MetaMessage::TrackName(name)) => {
-                            track_name =
-                                Some(str::from_utf8(name).unwrap_or("Failed to decode track name"));
-                        }
-                        TrackEventKind::Meta(MetaMessage::InstrumentName(name)) => {
-                            instrument_name = Some(
-                                str::from_utf8(name).unwrap_or("Failed to decode instrument name"),
-                            );
-                        }
-                        _ => continue,
-                    }
-                    if track_name.is_some() && instrument_name.is_some() {
-                        break;
-                    }
-                }
-
-                builder.push_record([
-                    i.to_string().as_str(),
-                    track_name.unwrap_or("Unknown"),
-                    program_name,
-                    instrument_name.unwrap_or("Unknown"),
-                ]);
-            }
-            let table = builder.build().with(Style::psql()).to_string();
-            let tracks_tbl = table.split("\n").collect::<Vec<_>>();
-            let tracks = &tracks_tbl[2..];
-            let chosen_tracks = MultiSelect::with_theme(&theme)
-                .with_prompt(
-                    format!("Which tracks to play? (use arrow keys and space to select, enter to confirm)\n  {}\n  {}", tracks_tbl[0], tracks_tbl[1]),
-                )
-                .items(&tracks)
-                .defaults(&vec![true; tracks.len()])
-                .interact()?;
-
+            let chosen_tracks = get_tracks_selection(&settings.smf, &theme)?;
             settings.tracks = Some(chosen_tracks);
 
             song_queue.push(settings);
@@ -298,6 +218,90 @@ fn collect_midi_files(dir: &Path) -> (Vec<PathBuf>, Vec<String>) {
     }
 
     (midi_files, folder_names)
+}
+
+fn get_tracks_selection(smf: &Smf, theme: &ColorfulTheme) -> Result<Vec<usize>, dialoguer::Error> {
+    // progams[track] = instrument
+    let mut programs = vec![-1; smf.tracks.len()];
+    // Get the "program"/instrument of each channel
+    for (i, track) in smf.tracks.iter().enumerate() {
+        for event in track {
+            match event.kind {
+                TrackEventKind::Midi { channel, message } => match message {
+                    MidiMessage::ProgramChange { program } => {
+                        debug!(
+                            "Program change: {} - {} channel {} track {}",
+                            program,
+                            INSTRUMENTS[program.as_int() as usize],
+                            channel,
+                            i
+                        );
+                        if channel == 9 {
+                            programs[i] = -128;
+                        } else {
+                            programs[i] = program.as_int() as i8;
+                        }
+                        break;
+                    }
+                    _ => {}
+                },
+                _ => continue,
+            }
+        }
+    }
+
+    // Ask the user which tracks to play
+    let mut builder = Builder::new();
+    builder.push_record(["Track #", "Track Name", "Program", "Instrument"]);
+    for (i, track) in smf.tracks.iter().enumerate() {
+        let mut track_name = None;
+        let mut instrument_name = None;
+        let program_number = programs[i];
+        let program_name = if program_number == -128 {
+            // Special case from rhythm channel
+            "Standard Drum Kit"
+        } else {
+            INSTRUMENTS
+                .get(program_number as usize)
+                .unwrap_or(&"Unknown")
+        };
+
+        for event in track {
+            match event.kind {
+                TrackEventKind::Meta(MetaMessage::TrackName(name)) => {
+                    track_name =
+                        Some(str::from_utf8(name).unwrap_or("Failed to decode track name"));
+                }
+                TrackEventKind::Meta(MetaMessage::InstrumentName(name)) => {
+                    instrument_name =
+                        Some(str::from_utf8(name).unwrap_or("Failed to decode instrument name"));
+                }
+                _ => continue,
+            }
+            if track_name.is_some() && instrument_name.is_some() {
+                break;
+            }
+        }
+
+        builder.push_record([
+            i.to_string().as_str(),
+            track_name.unwrap_or("Unknown"),
+            program_name,
+            instrument_name.unwrap_or("Unknown"),
+        ]);
+    }
+    let table = builder.build().with(Style::psql()).to_string();
+    let tracks_tbl = table.split("\n").collect::<Vec<_>>();
+    let tracks = &tracks_tbl[2..];
+    let chosen_tracks = MultiSelect::with_theme(theme)
+        .with_prompt(
+            format!("Which tracks to play? (use arrow keys and space to select, enter to confirm)\n  {}\n  {}", tracks_tbl[0], tracks_tbl[1]),
+        )
+        .items(&tracks)
+        .defaults(&vec![true; tracks.len()])
+        .interact()?;
+
+    Ok(chosen_tracks)
 }
 
 fn pause_and_exit(code: i32) -> ! {
