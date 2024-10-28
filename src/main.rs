@@ -7,6 +7,7 @@ use indicatif_log_bridge::LogWrapper;
 use instruments::INSTRUMENTS;
 use log::{debug, error, info};
 use midly::{MetaMessage, MidiMessage, Smf, TrackEventKind};
+use rusqlite::{params, Connection};
 use simple_logger::SimpleLogger;
 use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
 use tabled::{builder::Builder, settings::Style};
@@ -27,6 +28,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let multi = MultiProgress::new();
     LogWrapper::new(multi.clone(), logger).try_init()?;
     let theme = ColorfulTheme::default();
+
+    let conn = Connection::open("webfishing-midi.db")?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS track_selections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            tracks TEXT);",
+        (),
+    )?;
 
     let window = WINDOW_NAMES
         .iter()
@@ -63,6 +73,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (midi_file_path, selection) = get_midi_selection(&theme, default_selection);
             default_selection = selection;
 
+            info!("Selected: {}", midi_file_path.display());
+
             let midi_data = match fs::read(&midi_file_path) {
                 Ok(data) => data,
                 Err(e) => {
@@ -86,7 +98,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            let chosen_tracks = get_tracks_selection(&settings.smf, &theme)?;
+            let chosen_tracks =
+                get_tracks_selection(&midi_file_path, &settings.smf, &theme, &conn)?;
             settings.tracks = Some(chosen_tracks);
 
             song_queue.push(settings);
@@ -220,7 +233,73 @@ fn collect_midi_files(dir: &Path) -> (Vec<PathBuf>, Vec<String>) {
     (midi_files, folder_names)
 }
 
-fn get_tracks_selection(smf: &Smf, theme: &ColorfulTheme) -> Result<Vec<usize>, dialoguer::Error> {
+fn get_tracks_from_db(
+    midi_path: &str,
+    conn: &Connection,
+) -> Result<Option<Vec<usize>>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT tracks FROM track_selections WHERE path = ?1;")?;
+    let result = stmt.query_row([midi_path], |row| {
+        let track_ids_str: String = row.get(0)?;
+        let track_ids = track_ids_str
+            .split(',')
+            .filter_map(|id| id.parse::<usize>().ok())
+            .collect();
+        Ok(track_ids)
+    });
+
+    match result {
+        Ok(track_ids) => Ok(Some(track_ids)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+fn insert_tracks_to_db(
+    midi_path: &str,
+    tracks: &[usize],
+    conn: &Connection,
+) -> Result<(), rusqlite::Error> {
+    let track_ids_str = tracks
+        .iter()
+        .map(|id| id.to_string())
+        .collect::<Vec<String>>()
+        .join(","); // Convert track_ids to a comma-separated string
+
+    debug!("Inserting tracks: {}", track_ids_str);
+
+    conn.execute(
+        "INSERT INTO track_selections (path, tracks)
+        VALUES (?1, ?2)
+        ON CONFLICT(path) DO UPDATE SET tracks = excluded.tracks;",
+        params![midi_path, track_ids_str],
+    )?;
+
+    Ok(())
+}
+
+fn get_tracks_selection(
+    midi_path: &PathBuf,
+    smf: &Smf,
+    theme: &ColorfulTheme,
+    conn: &Connection,
+) -> Result<Vec<usize>, dialoguer::Error> {
+    let midi_path = match midi_path.to_str() {
+        Some(midi_path) => midi_path,
+        None => {
+            error!("Could not convert path to string");
+            pause_and_exit(-1);
+        }
+    };
+
+    // If the midi_path is already in the DB then get the tracks from the DB
+    let saved_tracks = match get_tracks_from_db(midi_path, conn) {
+        Ok(tracks) => tracks,
+        Err(err) => {
+            error!("Failed to get tracks from database: {}", err);
+            pause_and_exit(-1);
+        }
+    };
+
     // progams[track] = instrument
     let mut programs = vec![-1; smf.tracks.len()];
     // Get the "program"/instrument of each channel
@@ -293,13 +372,34 @@ fn get_tracks_selection(smf: &Smf, theme: &ColorfulTheme) -> Result<Vec<usize>, 
     let table = builder.build().with(Style::psql()).to_string();
     let tracks_tbl = table.split("\n").collect::<Vec<_>>();
     let tracks = &tracks_tbl[2..];
+
+    let defaults = if let Some(saved_tracks) = saved_tracks {
+        let mut defaults = vec![false; tracks.len()];
+        for track_index in saved_tracks {
+            if track_index < defaults.len() {
+                defaults[track_index] = true;
+            }
+        }
+        defaults
+    } else {
+        vec![true; tracks.len()]
+    };
+
     let chosen_tracks = MultiSelect::with_theme(theme)
         .with_prompt(
             format!("Which tracks to play? (use arrow keys and space to select, enter to confirm)\n  {}\n  {}", tracks_tbl[0], tracks_tbl[1]),
         )
         .items(&tracks)
-        .defaults(&vec![true; tracks.len()])
+        .defaults(&defaults)
         .interact()?;
+
+    match insert_tracks_to_db(midi_path, &chosen_tracks, conn) {
+        Ok(_) => {}
+        Err(err) => {
+            error!("Failed to insert tracks to database: {}", err);
+            pause_and_exit(-1);
+        }
+    };
 
     Ok(chosen_tracks)
 }

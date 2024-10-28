@@ -14,3 +14,4 @@ xcap = "0.0.14"
 indicatif = "0.17.8"
 indicatif-log-bridge = "0.2.3"
 tabled = "0.16.0"
+rusqlite = { version = "0.32.1", features = ["bundled"] }
