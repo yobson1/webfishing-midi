@@ -9,10 +9,20 @@ use log::{debug, error, info};
 use midly::{MetaMessage, MidiMessage, Smf, TrackEventKind};
 use rusqlite::{params, Connection};
 use simple_logger::SimpleLogger;
-use std::{fs, io::stdin, path::Path, path::PathBuf, process::exit};
+use std::{
+    fs,
+    io::stdin,
+    path::{Path, PathBuf},
+    process::exit,
+};
 use tabled::{builder::Builder, settings::Style};
 use webfishing_player::{PlayerSettings, WebfishingPlayer};
 use xcap::Window;
+
+#[cfg(feature = "auto-update")]
+use self_update::{cargo_crate_version, update::ReleaseUpdate, version::bump_is_greater};
+#[cfg(feature = "auto-update")]
+use std::env;
 
 const MIDI_DIR: &str = "./midi";
 const WINDOW_NAMES: [&str; 3] = ["steam_app_3146520", "Fish! (On the WEB!)", "Godot_Engine"];
@@ -28,6 +38,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let multi = MultiProgress::new();
     LogWrapper::new(multi.clone(), logger).try_init()?;
     let theme = ColorfulTheme::default();
+
+    #[cfg(feature = "auto-update")]
+    {
+        let cur_ver = cargo_crate_version!();
+        let opt_updater = check_update(cur_ver).unwrap_or_else(|e| {
+            error!("Update check failed: {}", e);
+            None
+        });
+        if let Some(updater) = opt_updater {
+            let should_update = Confirm::with_theme(&theme)
+                .with_prompt(format!(
+                    "A new version v{} --> v{} is available. Update now?",
+                    cur_ver,
+                    updater.get_latest_release()?.version
+                ))
+                .default(true)
+                .interact()?;
+
+            if should_update {
+                updater.update()?;
+                info!("Update successful! Restart the application.");
+                pause_and_exit(0);
+            }
+        } else {
+            info!("Up to date! v{}", cur_ver);
+        }
+    }
 
     let conn = Connection::open("webfishing-midi.db")?;
     conn.execute(
@@ -151,6 +188,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "auto-update")]
+fn check_update(
+    cur_ver: &str,
+) -> Result<Option<Box<dyn ReleaseUpdate>>, self_update::errors::Error> {
+    let updater = self_update::backends::github::Update::configure()
+        .repo_owner("yobson1")
+        .repo_name("webfishing-midi")
+        .bin_name("webfishing-midi")
+        .show_download_progress(true)
+        .show_output(cfg!(debug_assertions))
+        .no_confirm(true)
+        .current_version(cur_ver)
+        .build()?;
+
+    let latest = updater.get_latest_release()?;
+    if bump_is_greater(cur_ver, &latest.version)? {
+        Ok(Some(updater))
+    } else {
+        Ok(None)
+    }
 }
 
 fn get_window(name: &str) -> Option<Window> {

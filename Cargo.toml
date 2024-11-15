@@ -1,6 +1,6 @@
 [package]
 name = "webfishing-midi"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 
 [dependencies]
@@ -15,3 +15,7 @@ indicatif = "0.17.8"
 indicatif-log-bridge = "0.2.3"
 tabled = "0.16.0"
 rusqlite = { version = "0.32.1", features = ["bundled"] }
+self_update = {version = "0.41.0", features = ["archive-tar", "compression-flate2"], optional = true}
+
+[features]
+auto-update = ["dep:self_update"]
