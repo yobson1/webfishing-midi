@@ -196,6 +196,7 @@ fn check_update(
 ) -> Result<Option<Box<dyn ReleaseUpdate>>, self_update::errors::Error> {
     let updater = self_update::backends::github::Update::configure()
         .repo_owner("yobson1")
+        .verifying_keys([*include_bytes!("../pub.key")])
         .repo_name("webfishing-midi")
         .bin_name("webfishing-midi")
         .show_download_progress(true)
