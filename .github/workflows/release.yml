@@ -92,7 +92,7 @@ jobs:
 
       - name: Prepare Windows Files
         if: matrix.os == 'windows-latest' && github.ref_type == 'tag'
-        run:
+        run: |
           mkdir dist
           copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" "dist\"
           copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" .
