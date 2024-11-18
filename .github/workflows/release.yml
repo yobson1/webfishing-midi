@@ -33,7 +33,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build Release Binary
-        run: cargo build --verbose --release --target ${{ matrix.target }}
+        run: cargo build --verbose --release --features "auto-update" --target ${{ matrix.target }}
 
       - name: Prepare Linux Files
         if: matrix.os == 'ubuntu-latest'
