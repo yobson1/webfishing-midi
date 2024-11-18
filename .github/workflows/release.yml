@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  CARGO_TERM_COLOR: always
+  PROJECT_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_name: .tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_name: .zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build Release Binary
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+
+      - name: Prepare Linux Files
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir -p "dist"
+          cp "target/${{ matrix.target }}/release/${{ env.PROJECT_NAME }}" "dist/"
+          cp "target/${{ matrix.target }}/release/${{ env.PROJECT_NAME }}" .
+          cd dist
+          tar czf "../${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }}" *
+
+      - name: Prepare Windows Files
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir dist
+          copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" "dist\"
+          copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" .
+          Compress-Archive -Path "dist\*" -DestinationPath "${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }}"
+
+      - name: Generate Changelog
+        if: matrix.os == 'ubuntu-latest'
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Append Usage Section
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo -e "\n### Usage\nwebfishing-midi.exe for windows\nwebfishing-midi for linux" >> CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+        with:
+          draft: true
+          body_path: ${{ matrix.os == 'ubuntu-latest' && 'CHANGELOG.md' || '' }}
+          files: |
+            ${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }}
+            ${{ env.PROJECT_NAME }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
