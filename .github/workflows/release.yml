@@ -57,20 +57,22 @@ jobs:
           sudo apt install libdbus-1-dev libxdo-dev
 
       - name: Install cargo-binstall
+        if: github.ref_type == 'tag'
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install zipsign
+        if: github.ref_type == 'tag'
         run: cargo binstall zipsign && zipsign --version
 
       - name: Retrieve the code signing private key Linux
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && github.ref_type == 'tag'
         env:
           BASE64_PRIV_KEY: ${{ secrets.BASE64_PRIV_KEY }}
         run: |
           echo $BASE64_PRIV_KEY | base64 --decode > priv.key
 
       - name: Retrieve the code signing private key Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' && github.ref_type == 'tag'
         env:
           BASE64_PRIV_KEY: ${{ secrets.BASE64_PRIV_KEY }}
         run: |
@@ -80,7 +82,7 @@ jobs:
         run: cargo build --verbose --release --features "auto-update" --target ${{ matrix.target }}
 
       - name: Prepare Linux Files
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && github.ref_type == 'tag'
         run: |
           mkdir -p "dist"
           cp "target/${{ matrix.target }}/release/${{ env.PROJECT_NAME }}" "dist/"
@@ -89,18 +91,19 @@ jobs:
           tar czf "../${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }}" *
 
       - name: Prepare Windows Files
-        if: matrix.os == 'windows-latest'
-        run: |
+        if: matrix.os == 'windows-latest' && github.ref_type == 'tag'
+        run:
           mkdir dist
           copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" "dist\"
           copy "target\${{ matrix.target }}\release\${{ env.PROJECT_NAME }}.exe" .
           Compress-Archive -Path "dist\*" -DestinationPath "${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }}"
 
       - name: Sign the archive
+        if: github.ref_type == 'tag'
         run: zipsign sign ${{ matrix.os == 'windows-latest' && 'zip' || 'tar' }} ${{ env.PROJECT_NAME }}-${{ matrix.target }}${{ matrix.archive_name }} priv.key
 
       - name: Generate Changelog
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && github.ref_type == 'tag'
         uses: orhun/git-cliff-action@v4
         with:
           args: -vv --latest --strip header
@@ -108,12 +111,12 @@ jobs:
           OUTPUT: CHANGELOG.md
 
       - name: Append Usage Section
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && github.ref_type == 'tag'
         run: |
           echo -e "\n### Usage\nwebfishing-midi.exe for windows\nwebfishing-midi for linux" >> CHANGELOG.md
 
       - name: Create GitHub Release
-        if: ${{ github.ref_type == 'tag' }}
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
