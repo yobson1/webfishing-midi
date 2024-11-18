@@ -2,8 +2,16 @@ name: Release
 
 on:
   push:
+    branches:
+      # we need to build on the default branch for the cache to work
+      # https://github.com/orgs/community/discussions/27059
+      # https://github.com/actions/cache?tab=readme-ov-file#cache-scopes
+      - main
     tags:
-      - '*'
+      - '*.*.*'
+
+concurrency:
+  group: ${{ github.workflow }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,6 +34,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ matrix.target }}-cargo-
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -94,6 +113,7 @@ jobs:
           echo -e "\n### Usage\nwebfishing-midi.exe for windows\nwebfishing-midi for linux" >> CHANGELOG.md
 
       - name: Create GitHub Release
+        if: ${{ github.ref_type == 'tag' }}
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
