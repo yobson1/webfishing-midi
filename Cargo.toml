@@ -15,7 +15,7 @@ indicatif = "0.17.8"
 indicatif-log-bridge = "0.2.3"
 tabled = "0.16.0"
 rusqlite = { version = "0.32.1", features = ["bundled"] }
-self_update = {version = "0.41.0", features = ["archive-tar", "compression-flate2"], optional = true}
+self_update = {version = "0.41.0", features = ["archive-tar", "compression-flate2", "archive-zip", "compression-zip-deflate"], optional = true}
 
 [features]
 auto-update = ["dep:self_update"]
