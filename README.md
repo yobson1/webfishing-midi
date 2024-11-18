@@ -26,6 +26,28 @@ https://github.com/user-attachments/assets/c7b81e3e-f701-4470-bc7c-66a9a4e508da
 ## Supported platforms
 As of now this has only been tested on Linux and Windows but I have taken care to use cross-platform libraries. If you encounter a problem please [open an issue](https://github.com/yobson1/webfishing-midi/issues) and I will try to resolve it
 
+## Building
+### Installing Rust
+To build from source you will need to install Rust. Some Linux distros may provide a rust package directly but rustup is recommended, distros may also have a package for rustup.
+[General instructions for installing rust can be found here](https://www.rust-lang.org/tools/install)
+
+- Install rustup using your Linux distribution's package manager or using [the install script](https://rustup.rs/). On Windows download and run [rustup-init.exe](https://rustup.rs/)
+- Install the stable toolchain & set it as default with `rustup default stable`
+- You can now build the project using `cargo build`
+
+#### Example installation for Arch
+```
+$ sudo pacman -S rustup
+$ rustup default stable
+```
+
+### Example
+```
+$ git clone https://github.com/yobson1/webfishing-midi.git
+$ cd webfishing-midi
+$ cargo build --release
+```
+
 ## Acknowledgements
 - Got the note shifting idea/logic from [KevAquila](https://github.com/KevAquila/WEBFISHING-Guitar-Player) his code was used as reference
 - Feature contributions from [Peacockli](https://github.com/Peacockli/webfishing-midi)
